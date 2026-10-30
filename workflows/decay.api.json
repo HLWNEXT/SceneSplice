@@ -1,0 +1,28 @@
+{
+  "1": { "class_type": "UNETLoader", "inputs": { "unet_name": "flux1-dev-kontext_fp8_scaled.safetensors", "weight_dtype": "default" }, "_meta": { "title": "FLUX Kontext model" } },
+  "2": { "class_type": "DualCLIPLoader", "inputs": { "clip_name1": "clip_l.safetensors", "clip_name2": "t5xxl_fp8_e4m3fn_scaled.safetensors", "type": "flux", "device": "default" }, "_meta": { "title": "FLUX text encoders" } },
+  "3": { "class_type": "VAELoader", "inputs": { "vae_name": "ae.safetensors" }, "_meta": { "title": "FLUX VAE" } },
+  "4": { "class_type": "LoadImage", "inputs": { "image": "as-built.png" }, "_meta": { "title": "INPUT: as-built image" } },
+  "5": { "class_type": "FluxKontextImageScale", "inputs": { "image": ["4", 0] }, "_meta": { "title": "Scale to Kontext resolution" } },
+  "6": { "class_type": "VAEEncode", "inputs": { "pixels": ["5", 0], "vae": ["3", 0] }, "_meta": { "title": "Encode as-built" } },
+  "7": { "class_type": "CLIPTextEncode", "inputs": { "text": "decay prompt", "clip": ["2", 0] }, "_meta": { "title": "INPUT: FLUX positive prompt" } },
+  "8": { "class_type": "ReferenceLatent", "inputs": { "conditioning": ["7", 0], "latent": ["6", 0] }, "_meta": { "title": "Reference = as-built" } },
+  "9": { "class_type": "FluxGuidance", "inputs": { "conditioning": ["8", 0], "guidance": 2.5 }, "_meta": { "title": "Guidance" } },
+  "10": { "class_type": "ConditioningZeroOut", "inputs": { "conditioning": ["7", 0] }, "_meta": { "title": "Empty negative" } },
+  "11": { "class_type": "KSampler", "inputs": { "model": ["1", 0], "seed": 0, "steps": 20, "cfg": 1, "sampler_name": "euler", "scheduler": "simple", "positive": ["9", 0], "negative": ["10", 0], "latent_image": ["6", 0], "denoise": 1 }, "_meta": { "title": "INPUT: FLUX sampler (seed)" } },
+  "12": { "class_type": "VAEDecode", "inputs": { "samples": ["11", 0], "vae": ["3", 0] }, "_meta": { "title": "Decode ruined keyframe" } },
+  "13": { "class_type": "SaveImage", "inputs": { "images": ["12", 0], "filename_prefix": "decayui/keyframe" }, "_meta": { "title": "Save ruined keyframe" } },
+
+  "20": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "ltx-video-2b-v0.9.5.safetensors" }, "_meta": { "title": "LTX-Video model" } },
+  "21": { "class_type": "CLIPLoader", "inputs": { "clip_name": "t5xxl_fp16.safetensors", "type": "ltxv", "device": "default" }, "_meta": { "title": "LTX text encoder" } },
+  "22": { "class_type": "CLIPTextEncode", "inputs": { "text": "motion prompt", "clip": ["21", 0] }, "_meta": { "title": "INPUT: LTX motion prompt" } },
+  "23": { "class_type": "CLIPTextEncode", "inputs": { "text": "worst quality, inconsistent motion, blurry, jittery, distorted, watermark", "clip": ["21", 0] }, "_meta": { "title": "LTX negative prompt" } },
+  "24": { "class_type": "LTXVImgToVideo", "inputs": { "positive": ["22", 0], "negative": ["23", 0], "vae": ["20", 2], "image": ["12", 0], "width": 768, "height": 512, "length": 97, "batch_size": 1, "image_strength": 1 }, "_meta": { "title": "Keyframe to video latent" } },
+  "25": { "class_type": "LTXVConditioning", "inputs": { "positive": ["24", 0], "negative": ["24", 1], "frame_rate": 25 }, "_meta": { "title": "Frame rate conditioning" } },
+  "26": { "class_type": "LTXVScheduler", "inputs": { "steps": 30, "max_shift": 2.05, "base_shift": 0.95, "stretch": true, "terminal": 0.1, "latent": ["24", 2] }, "_meta": { "title": "LTX sigmas" } },
+  "27": { "class_type": "KSamplerSelect", "inputs": { "sampler_name": "euler" }, "_meta": { "title": "Sampler" } },
+  "28": { "class_type": "SamplerCustom", "inputs": { "model": ["20", 0], "add_noise": true, "noise_seed": 0, "cfg": 3, "positive": ["25", 0], "negative": ["25", 1], "sampler": ["27", 0], "sigmas": ["26", 0], "latent_image": ["24", 2] }, "_meta": { "title": "INPUT: LTX sampler (seed)" } },
+  "29": { "class_type": "VAEDecode", "inputs": { "samples": ["28", 0], "vae": ["20", 2] }, "_meta": { "title": "Decode video frames" } },
+  "30": { "class_type": "CreateVideo", "inputs": { "images": ["29", 0], "fps": 25 }, "_meta": { "title": "Assemble video" } },
+  "31": { "class_type": "SaveVideo", "inputs": { "video": ["30", 0], "filename_prefix": "decayui/as-ruined", "format": "mp4", "codec": "h264" }, "_meta": { "title": "OUTPUT: MP4" } }
+}
