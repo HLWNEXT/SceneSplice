@@ -9,7 +9,22 @@ export const NODE = {
   outputVideo: "31",
 } as const;
 
-type Workflow = Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+/** Status text and overall-progress range (0-100) for each node, used to drive the progress bar. */
+export const NODE_PROGRESS: Record<string, { label: string; from: number; to: number }> = {
+  "1": { label: "Loading FLUX Kontext...", from: 0, to: 3 },
+  "2": { label: "Loading text encoders...", from: 0, to: 3 },
+  "5": { label: "Preparing as-built image...", from: 3, to: 5 },
+  "7": { label: "Encoding decay prompt...", from: 3, to: 5 },
+  "11": { label: "Running FLUX pass...", from: 5, to: 45 },
+  "12": { label: "Decoding ruined keyframe...", from: 45, to: 48 },
+  "20": { label: "Loading LTX-Video...", from: 48, to: 52 },
+  "24": { label: "Initializing LTX motion...", from: 52, to: 55 },
+  "28": { label: "Generating LTX motion...", from: 55, to: 90 },
+  "29": { label: "Decoding video frames...", from: 90, to: 96 },
+  "31": { label: "Encoding MP4...", from: 96, to: 99 },
+};
+
+type Workflow =Record<string, { class_type: string; inputs: Record<string, unknown> }>;
 
 export type WorkflowParams = {
   imageName: string;

@@ -3,7 +3,7 @@
 import { Download, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ATMOSPHERES } from "../lib/atmosphere";
-import { fetchResult, queuePrompt, trackProgress, uploadImage } from "../lib/comfy";
+import { ComfyError, cancelPrompt, checkServer, queuePrompt, trackProgress, uploadImage, viewUrl } from "../lib/comfy";
 import { yearsToPrompt } from "../lib/decay";
 import { AtmosphereSelect } from "./atmosphere-select";
 import { ChronoSlider } from "./chrono-slider";
@@ -32,6 +32,8 @@ export function Studio() {
   const [lines, setLines] = useState<LogLine[]>([]);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const promptIdRef = useRef<string | null>(null);
+  const [online, setOnline] = useState<boolean | null>(null);
   const lineId = useRef(0);
 
   useEffect(() => {
@@ -42,6 +44,22 @@ export function Studio() {
   }, [file]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    const ping = () => checkServer(ctrl.signal).then((ok) => !ctrl.signal.aborted && setOnline(ok));
+    ping();
+    const t = setInterval(ping, 10_000);
+    return () => {
+      ctrl.abort();
+      clearInterval(t);
+    };
+  }, []);
+
+  function abort() {
+    abortRef.current?.abort();
+    if (promptIdRef.current) void cancelPrompt(promptIdRef.current);
+  }
 
   const log = (text: string) =>
     setLines((l) => [...l, { id: lineId.current++, time: new Date().toLocaleTimeString("en-GB"), text }]);
@@ -60,27 +78,36 @@ export function Studio() {
       const { name } = await uploadImage(file);
       log(`Input staged as ${name}`);
       const decayPrompt = yearsToPrompt(years);
-      log(`T+${years.toLocaleString("en-US")}yr → ${decayPrompt}`);
-      const { promptId } = await queuePrompt({
-        imageName: name,
-        years,
-        decayPrompt,
-        atmospherePrompt: atmosphere.prompt,
-      });
+      const seed = Math.floor(Math.random() * 2 ** 32);
+      log(`T+${years.toLocaleString("en-US")}yr seed ${seed} → ${decayPrompt}`);
+      const clientId = crypto.randomUUID();
+      const { promptId } = await queuePrompt(
+        { imageName: name, decayPrompt, atmospherePrompt: atmosphere.prompt, seed },
+        clientId,
+      );
+      promptIdRef.current = promptId;
       log(`Queued prompt ${promptId.slice(0, 8)}`);
-      await trackProgress(
+      let last = "";
+      const output = await trackProgress(
         promptId,
+        clientId,
         (e) => {
-          setPercent(e.percent);
-          log(e.message);
+          setPercent((p) => Math.max(p, e.percent));
+          if (e.message !== last) log(e.message);
+          last = e.message;
         },
         ctrl.signal,
       );
-      setVideoUrl(await fetchResult(promptId));
+      setVideoUrl(viewUrl(output));
       log("Result ready.");
     } catch (err) {
-      log(err instanceof DOMException && err.name === "AbortError" ? "Cancelled." : `ERROR: ${String(err)}`);
+      log(
+        err instanceof DOMException && err.name === "AbortError"
+          ? "Cancelled."
+          : `ERROR: ${err instanceof ComfyError ? err.message : String(err)}`,
+      );
     } finally {
+      promptIdRef.current = null;
       setBusy(false);
     }
   }
@@ -94,7 +121,12 @@ export function Studio() {
           </h1>
           <p className="text-[10px] uppercase tracking-widest text-dim">Entropy Studio · Architectural decay simulator</p>
         </div>
-        <div className="text-[10px] uppercase tracking-widest text-dim">v0.1 · mock backend</div>
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-dim">
+          <span
+            className={`inline-block size-2 ${online ? "bg-accent" : online === false ? "bg-red-500" : "bg-dim"}`}
+          />
+          {online ? "ComfyUI online" : online === false ? "ComfyUI offline" : "Checking..."}
+        </div>
       </header>
 
       <main className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -111,7 +143,7 @@ export function Studio() {
           <button
             type="button"
             onClick={simulate}
-            disabled={!file || busy}
+            disabled={!file || busy || online === false}
             className="flex items-center justify-center gap-3 bg-accent px-6 py-4 text-sm font-bold uppercase tracking-widest text-black transition-opacity disabled:cursor-not-allowed disabled:opacity-30"
           >
             <Play size={16} fill="currentColor" />
@@ -120,7 +152,7 @@ export function Studio() {
           {busy && (
             <button
               type="button"
-              onClick={() => abortRef.current?.abort()}
+              onClick={abort}
               className="border border-line py-2 text-xs uppercase tracking-widest text-dim hover:border-white hover:text-white"
             >
               Abort
