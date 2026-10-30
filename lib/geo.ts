@@ -16,7 +16,7 @@ export function buildOverpassQuery(lat: number, lon: number, radius: number): st
   return `[out:json][timeout:25];way["building"](around:${radius},${lat},${lon});out geom;`;
 }
 
-export function parseBuildingHeight(tags?: Record<string, string>): number {
+export function parseBuildingHeight(tags?: Record<string, string | undefined>): number {
   const h = parseFloat(tags?.height ?? "");
   if (Number.isFinite(h) && h > 0) return h;
   const levels = parseFloat(tags?.["building:levels"] ?? "");
@@ -43,7 +43,7 @@ function contains(poly: [number, number][], x: number, y: number): boolean {
 type OverpassWay = {
   type: string;
   id: number;
-  tags?: Record<string, string>;
+  tags?: Record<string, string | undefined>;
   geometry?: LatLon[];
 };
 
