@@ -76,8 +76,9 @@ export function createWhiteboxView(canvas: HTMLCanvasElement): WhiteboxView {
       for (const b of buildings) group.add(new THREE.Mesh(extrude(b), b.isTarget ? highlight : white));
       const target = buildings.find((b) => b.isTarget);
       const h = target?.height ?? 15;
-      controls.target.set(0, h / 2, 0);
-      camera.position.set(70, h + 35, 90);
+      const d = Math.max(110, h * 1.6); // back off further for tall buildings
+      controls.target.set(0, h * 0.45, 0);
+      camera.position.set(d * 0.6, h * 0.6 + 30, d);
       controls.update();
     },
     async capture() {
