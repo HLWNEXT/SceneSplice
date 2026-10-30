@@ -1,12 +1,12 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import type { Building } from "./geo";
+import type { Building, Scenery } from "./geo";
 
 export const CAPTURE_WIDTH = 1024;
 export const CAPTURE_HEIGHT = 576;
 
 export type WhiteboxView = {
-  setBuildings(buildings: Building[]): void;
+  setScene(buildings: Building[], scenery: Scenery, keepCamera?: boolean): void;
   /** Renders the current camera as a shaded white-box PNG and a depth PNG (near = white). */
   capture(): Promise<{ shaded: Blob; depth: Blob }>;
   dispose(): void;
@@ -17,6 +17,31 @@ function extrude(b: Building): THREE.BufferGeometry {
   const shape = new THREE.Shape(b.footprint.map(([east, south]) => new THREE.Vector2(east, -south)));
   const geo = new THREE.ExtrudeGeometry(shape, { depth: b.height, bevelEnabled: false });
   geo.rotateX(-Math.PI / 2); // extrude along +y; shape-y -> -z, so north (-south) lands on -z
+  return geo;
+}
+
+/** Flat ribbon along a polyline, laid just above the ground. */
+function roadGeometry(points: [number, number][], width: number): THREE.BufferGeometry | null {
+  const pos: number[] = [];
+  const idx: number[] = [];
+  const half = width / 2;
+  for (let i = 0; i < points.length; i++) {
+    const a = points[Math.max(0, i - 1)];
+    const b = points[Math.min(points.length - 1, i + 1)];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len === 0) continue;
+    const nx = -(b[1] - a[1]) / len;
+    const nz = (b[0] - a[0]) / len;
+    const [x, z] = points[i];
+    pos.push(x + nx * half, 0.15, z + nz * half, x - nx * half, 0.15, z - nz * half);
+  }
+  const n = pos.length / 6;
+  if (n < 2) return null;
+  for (let i = 0; i < n - 1; i++) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
   return geo;
 }
 
@@ -49,6 +74,10 @@ export function createWhiteboxView(canvas: HTMLCanvasElement): WhiteboxView {
   const group = new THREE.Group();
   scene.add(group);
   const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 });
+  const asphalt = new THREE.MeshStandardMaterial({ color: 0x7c8087, roughness: 1, side: THREE.DoubleSide });
+  const grass = new THREE.MeshStandardMaterial({ color: 0xb9cfae, roughness: 1, side: THREE.DoubleSide });
+  const foliage = new THREE.MeshStandardMaterial({ color: 0x8fae8b, roughness: 1 });
+  const trunk = new THREE.MeshStandardMaterial({ color: 0x8a7a68, roughness: 1 });
   const highlight = new THREE.MeshStandardMaterial({ color: 0xfff1b8, roughness: 0.95 });
 
   let frame = 0;
@@ -60,7 +89,7 @@ export function createWhiteboxView(canvas: HTMLCanvasElement): WhiteboxView {
   loop();
 
   function clearGroup() {
-    for (const child of group.children) (child as THREE.Mesh).geometry.dispose();
+    group.traverse((child) => (child as THREE.Mesh).geometry?.dispose());
     group.clear();
   }
 
@@ -71,9 +100,26 @@ export function createWhiteboxView(canvas: HTMLCanvasElement): WhiteboxView {
   }
 
   return {
-    setBuildings(buildings) {
+    setScene(buildings, scenery, keepCamera = false) {
       clearGroup();
+      for (const g of scenery.greens) {
+        const shape = new THREE.Shape(g.footprint.map(([x, z]) => new THREE.Vector2(x, -z)));
+        group.add(new THREE.Mesh(new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2).translate(0, 0.08, 0), grass));
+      }
+      for (const road of scenery.roads) {
+        const geo = roadGeometry(road.points, road.width);
+        if (geo) group.add(new THREE.Mesh(geo, asphalt));
+      }
+      for (const t of scenery.trees) {
+        const tree = new THREE.Group();
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 3, 6).translate(0, 1.5, 0), trunk);
+        const crown = new THREE.Mesh(new THREE.SphereGeometry(2.8, 8, 6).translate(0, 5, 0), foliage);
+        tree.add(stem, crown);
+        tree.position.set(t.x, 0, t.z);
+        group.add(tree);
+      }
       for (const b of buildings) group.add(new THREE.Mesh(extrude(b), b.isTarget ? highlight : white));
+      if (keepCamera) return;
       const target = buildings.find((b) => b.isTarget);
       const h = target?.height ?? 15;
       const d = Math.max(110, h * 1.6); // back off further for tall buildings

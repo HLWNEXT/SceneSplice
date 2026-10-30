@@ -2,7 +2,7 @@
 
 import { Loader2, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { parseOverpass, type GeoResult } from "../lib/geo";
+import { parseOverpass, parseScenery, type Building, type GeoResult, type Scenery } from "../lib/geo";
 import { createWhiteboxView, type WhiteboxView } from "../lib/whitebox";
 
 export type CaptureFn = () => Promise<{ image: File; depth: File }>;
@@ -28,6 +28,8 @@ export function MapPicker({ disabled, onCaptureReady }: Props) {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const sceneRef = useRef<{ buildings: Building[]; scenery: Scenery } | null>(null);
+  const [heightOverride, setHeightOverride] = useState("");
 
   useEffect(() => {
     const view = createWhiteboxView(canvasRef.current!);
@@ -39,6 +41,15 @@ export function MapPicker({ disabled, onCaptureReady }: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function applyScene(override: string, keepCamera: boolean) {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    const h = parseFloat(override);
+    const buildings =
+      Number.isFinite(h) && h > 0 ? scene.buildings.map((b) => (b.isTarget ? { ...b, height: h } : b)) : scene.buildings;
+    viewRef.current?.setScene(buildings, scene.scenery, keepCamera);
+  }
 
   async function search(e: React.FormEvent) {
     e.preventDefault();
@@ -68,7 +79,9 @@ export function MapPicker({ disabled, onCaptureReady }: Props) {
         setError("No buildings found within 250 m of that address.");
         return;
       }
-      viewRef.current?.setBuildings(buildings);
+      sceneRef.current = { buildings, scenery: parseScenery(raw, r) };
+      setHeightOverride("");
+      applyScene("", false);
       setStatus(`${buildings.length} buildings · ${r.label.split(",").slice(0, 2).join(",")}`);
       onCaptureReady(async () => {
         const { shaded, depth } = await viewRef.current!.capture();
@@ -130,6 +143,24 @@ export function MapPicker({ disabled, onCaptureReady }: Props) {
       <p className="font-mono text-xs tracking-[0.08em] text-dim">
         {status ? `${status.toUpperCase()} · DRAG TO ORBIT, SCROLL TO ZOOM` : "WHITE-BOX MODEL · OPENSTREETMAP"}
       </p>
+      {status && (
+        <label className="flex flex-wrap items-center gap-2 text-sm text-dim">
+          Target building height (m)
+          <input
+            type="number"
+            min={1}
+            value={heightOverride}
+            onChange={(e) => {
+              setHeightOverride(e.target.value);
+              applyScene(e.target.value, true);
+            }}
+            disabled={disabled}
+            placeholder="from OpenStreetMap"
+            className="w-36 rounded-lg border border-edge bg-field px-2 py-1.5 text-sm outline-none focus:border-accent"
+          />
+          <span className="text-xs">OSM often has no height (defaults to 10 m); type one to correct it.</span>
+        </label>
+      )}
       {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
   );

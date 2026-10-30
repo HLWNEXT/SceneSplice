@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildOverpassQuery, parseBuildingHeight, parseOverpass } from "../lib/geo.ts";
+import { buildOverpassQuery, parseBuildingHeight, parseOverpass, parseScenery } from "../lib/geo.ts";
 
 const center = { lat: 40.0, lon: -74.0 };
 // ~20 m square around the centre, plus a neighbour ~60 m east.
@@ -54,4 +54,41 @@ test("buildOverpassQuery embeds radius and centre", () => {
   const q = buildOverpassQuery(40.1, -74.2, 250);
   assert.match(q, /around:250,40\.1,-74\.2/);
   assert.match(q, /out geom/);
+});
+
+test("parseScenery extracts roads and trees, and parseOverpass ignores them", () => {
+  const json = {
+    elements: [
+      { type: "way", id: 5, tags: { highway: "residential" }, geometry: [{ lat: 40, lon: -74 }, { lat: 40.0001, lon: -74 }] },
+      { type: "way", id: 6, tags: { highway: "proposed" }, geometry: [{ lat: 40, lon: -74 }, { lat: 40.0001, lon: -74 }] },
+      { type: "node", id: 7, lat: 40.0001, lon: -74, tags: { natural: "tree" } },
+    ],
+  };
+  const s = parseScenery(json, center);
+  assert.equal(s.roads.length, 1);
+  assert.equal(s.roads[0].width, 7);
+  assert.equal(s.trees.length, 1);
+  assert.ok(s.trees[0].z < 0);
+  assert.equal(parseOverpass(json, center).length, 0);
+});
+
+test("building:part shapes replace their outline and carry the height", () => {
+  const json = {
+    elements: [
+      { type: "way", id: 1, tags: { building: "yes" }, geometry: sq(40.0, -74.0) },
+      { type: "way", id: 2, tags: { "building:part": "yes", height: "120" }, geometry: sq(40.00002, -74.0) },
+    ],
+  };
+  const out = parseOverpass(json, center);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].id, 2);
+  assert.equal(out[0].height, 120);
+  assert.equal(out[0].isTarget, true);
+});
+
+test("parseScenery fills parks with trees", () => {
+  const park = { type: "way", id: 8, tags: { leisure: "park" }, geometry: sq(40.0, -74.0) };
+  const s = parseScenery({ elements: [park] }, center);
+  assert.equal(s.greens.length, 1);
+  assert.ok(s.trees.length > 0);
 });

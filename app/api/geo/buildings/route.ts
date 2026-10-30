@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { buildOverpassQuery } from "../../../../lib/geo";
 
 const USER_AGENT = "DecayUI/0.1 (HLW NEXT competition prototype)";
-const ENDPOINTS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
+const ENDPOINTS = [
+  "https://overpass.openstreetmap.fr/api/interpreter",
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+];
+const ENDPOINT_TIMEOUT_MS = 12_000;
 
 export async function GET(req: Request) {
   const p = new URL(req.url).searchParams;
@@ -18,6 +23,7 @@ export async function GET(req: Request) {
       method: "POST",
       body,
       headers: { "User-Agent": USER_AGENT },
+      signal: AbortSignal.timeout(ENDPOINT_TIMEOUT_MS),
       next: { revalidate: 3600 },
     }).catch(() => null);
     if (res?.ok) return NextResponse.json(await res.json());
