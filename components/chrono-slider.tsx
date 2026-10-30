@@ -27,12 +27,12 @@ export function ChronoSlider({ years, disabled, onChange }: Props) {
     <div className="space-y-4">
       <div className="flex items-end justify-between">
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-dim">Elapsed time</div>
-          <div className="text-4xl font-bold tabular-nums">
-            {formatYears(years)} <span className="text-lg text-dim">YR</span>
+          <div className="font-mono text-xs tracking-[0.08em] text-dim">ELAPSED</div>
+          <div className="text-3xl font-bold tabular-nums tracking-tight">
+            {formatYears(years)} <span className="text-base font-normal text-dim">years</span>
           </div>
         </div>
-        <div className="max-w-[55%] text-right text-xs text-dim">
+        <div className="max-w-[50%] text-right text-xs leading-snug text-dim">
           <span className="text-accent">{stage.label}</span> · {stage.summary}
         </div>
       </div>
@@ -63,7 +63,7 @@ export function ChronoSlider({ years, disabled, onChange }: Props) {
         />
       </div>
 
-      <div className="relative h-4 text-[10px] uppercase text-dim">
+      <div className="relative h-4 font-mono text-[10px] text-dim">
         {DECAY_STAGES.map((s) => (
           <button
             key={s.years}

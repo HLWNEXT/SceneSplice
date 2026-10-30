@@ -10,7 +10,7 @@ type Props = {
 
 export function AtmosphereSelect({ value, disabled, onChange }: Props) {
   return (
-    <div role="radiogroup" aria-label="Atmospheric conditions" className="grid grid-cols-2 gap-px bg-line">
+    <div role="radiogroup" aria-label="Atmospheric conditions" className="grid grid-cols-2 gap-2">
       {ATMOSPHERES.map((a) => {
         const active = a.id === value;
         return (
@@ -21,8 +21,8 @@ export function AtmosphereSelect({ value, disabled, onChange }: Props) {
             aria-checked={active}
             disabled={disabled}
             onClick={() => onChange(a.id)}
-            className={`px-3 py-3 text-left text-xs uppercase tracking-wider transition-colors disabled:opacity-50 ${
-              active ? "bg-accent text-black" : "bg-panel text-dim hover:text-white"
+            className={`rounded-lg border px-3 py-2.5 text-left text-[13px] font-semibold transition-colors disabled:opacity-45 ${
+              active ? "border-accent bg-accent text-on-accent" : "border-[#595b64] bg-[#292a30] text-white hover:bg-[#33343b]"
             }`}
           >
             {a.label}

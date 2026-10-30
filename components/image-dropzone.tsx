@@ -27,7 +27,7 @@ export function ImageDropzone({ file, previewUrl, disabled, onFile }: Props) {
 
   if (file && previewUrl) {
     return (
-      <div className="relative border border-line bg-panel">
+      <div className="overflow-hidden rounded-lg border border-edge bg-field">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={previewUrl} alt="As-built render" className="aspect-video w-full object-contain" />
         <div className="flex items-center justify-between border-t border-line px-3 py-2 text-xs text-dim">
@@ -36,7 +36,7 @@ export function ImageDropzone({ file, previewUrl, disabled, onFile }: Props) {
             type="button"
             disabled={disabled}
             onClick={() => onFile(null)}
-            className="flex items-center gap-1 uppercase hover:text-accent disabled:opacity-40"
+            className="flex items-center gap-1 hover:text-accent disabled:opacity-40"
           >
             <X size={14} /> Clear
           </button>
@@ -54,8 +54,8 @@ export function ImageDropzone({ file, previewUrl, disabled, onFile }: Props) {
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={(e) => { e.preventDefault(); setDragging(false); accept(e.dataTransfer.files[0]); }}
-        className={`flex aspect-video w-full flex-col items-center justify-center gap-3 border border-dashed text-sm uppercase tracking-widest transition-colors ${
-          dragging ? "border-accent text-accent" : "border-line text-dim hover:border-white hover:text-white"
+        className={`flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-field text-sm transition-colors ${
+          dragging ? "border-accent text-accent" : "border-edge text-dim hover:border-accent hover:text-white"
         }`}
       >
         <ImageUp size={28} strokeWidth={1.5} />
@@ -69,7 +69,7 @@ export function ImageDropzone({ file, previewUrl, disabled, onFile }: Props) {
         hidden
         onChange={(e) => { accept(e.target.files?.[0]); e.target.value = ""; }}
       />
-      {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
     </div>
   );
 }

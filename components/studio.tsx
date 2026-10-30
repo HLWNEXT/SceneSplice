@@ -10,18 +10,6 @@ import { ChronoSlider } from "./chrono-slider";
 import { ImageDropzone } from "./image-dropzone";
 import { Terminal, type LogLine } from "./terminal";
 
-function Panel({ title, index, children }: { title: string; index: string; children: React.ReactNode }) {
-  return (
-    <section className="border border-line bg-panel">
-      <header className="flex items-center justify-between border-b border-line px-4 py-2 text-[10px] uppercase tracking-widest text-dim">
-        <span>{title}</span>
-        <span>{index}</span>
-      </header>
-      <div className="p-4">{children}</div>
-    </section>
-  );
-}
-
 export function Studio() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -113,77 +101,92 @@ export function Studio() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-4 p-4 md:p-6">
-      <header className="flex items-end justify-between border-b border-line pb-4">
-        <div>
-          <h1 className="text-2xl font-bold uppercase tracking-tight">
-            As-Ruined<span className="text-accent">_</span>
-          </h1>
-          <p className="text-[10px] uppercase tracking-widest text-dim">Entropy Studio · Architectural decay simulator</p>
+    <main className="mx-auto w-[min(1120px,calc(100%-32px))] pb-16 pt-8">
+      <header className="my-8">
+        <div className="flex items-center justify-between">
+          <p className="font-mono text-xs tracking-[0.08em] text-dim">COMFY · ENTROPY STUDIO</p>
+          <p className="flex items-center gap-2 font-mono text-xs tracking-[0.08em] text-dim">
+            <span
+              className={`inline-block size-2 rounded-full ${online ? "bg-emerald-400" : online === false ? "bg-red-400" : "bg-dim"}`}
+            />
+            {online ? "COMFYUI ONLINE" : online === false ? "COMFYUI OFFLINE" : "CHECKING..."}
+          </p>
         </div>
-        <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-dim">
-          <span
-            className={`inline-block size-2 ${online ? "bg-accent" : online === false ? "bg-red-500" : "bg-dim"}`}
-          />
-          {online ? "ComfyUI online" : online === false ? "ComfyUI offline" : "Checking..."}
-        </div>
+        <h1 className="my-3 text-[clamp(48px,8vw,92px)] font-bold leading-[0.95] tracking-[-0.06em]">As-Ruined</h1>
+        <p className="max-w-[620px] leading-relaxed text-[#bbb]">
+          Upload a pristine architectural render, scrub forward through time, and simulate how the space decays.
+        </p>
       </header>
 
-      <main className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-4">
-          <Panel title="01 · As-built input" index="IMG">
+      <section
+        aria-label="Decay studio"
+        className="grid min-h-[550px] overflow-hidden rounded-2xl border border-line bg-panel md:grid-cols-[340px_1fr]"
+      >
+        <aside className="flex flex-col gap-4 border-b border-line p-5 md:border-b-0 md:border-r">
+          <div className="grid gap-2 text-[13px] text-[#d4d4d8]">
+            <span>01 · As-built render</span>
             <ImageDropzone file={file} previewUrl={previewUrl} disabled={busy} onFile={setFile} />
-          </Panel>
-          <Panel title="02 · Chrono-slider" index="T">
+          </div>
+          <fieldset className="grid gap-3 rounded-[10px] border border-edge p-3.5">
+            <legend className="px-1.5 text-[13px] text-[#d4d4d8]">02 · Time elapsed</legend>
             <ChronoSlider years={years} disabled={busy} onChange={setYears} />
-          </Panel>
-          <Panel title="03 · Atmospheric conditions" index="ATM">
+          </fieldset>
+          <fieldset className="grid gap-3 rounded-[10px] border border-edge p-3.5">
+            <legend className="px-1.5 text-[13px] text-[#d4d4d8]">03 · Atmosphere</legend>
             <AtmosphereSelect value={atmosphereId} disabled={busy} onChange={setAtmosphereId} />
-          </Panel>
+          </fieldset>
           <button
             type="button"
             onClick={simulate}
             disabled={!file || busy || online === false}
-            className="flex items-center justify-center gap-3 bg-accent px-6 py-4 text-sm font-bold uppercase tracking-widest text-black transition-opacity disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex items-center justify-center gap-2 rounded-lg border border-accent bg-accent px-3 py-3 font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-45"
           >
             <Play size={16} fill="currentColor" />
-            {busy ? "Simulating..." : "Simulate Decay"}
+            {busy ? "Simulating…" : "Simulate Decay"}
           </button>
           {busy && (
             <button
               type="button"
               onClick={abort}
-              className="border border-line py-2 text-xs uppercase tracking-widest text-dim hover:border-white hover:text-white"
+              className="rounded-lg border border-[#595b64] bg-[#292a30] px-3 py-2.5 font-semibold hover:bg-[#33343b]"
             >
               Abort
             </button>
           )}
-        </div>
+        </aside>
 
-        <div className="flex flex-col gap-4">
-          <Panel title="04 · Playback console" index="MP4">
-            {videoUrl ? (
-              <div>
-                <video src={videoUrl} controls autoPlay loop className="aspect-video w-full bg-black" />
-                <a
-                  href={videoUrl}
-                  download="as-ruined.mp4"
-                  className="mt-3 inline-flex items-center gap-2 text-xs uppercase text-dim hover:text-accent"
-                >
-                  <Download size={14} /> Download MP4
-                </a>
-              </div>
-            ) : (
-              <div className="flex aspect-video items-center justify-center border border-dashed border-line text-xs uppercase tracking-widest text-dim">
-                No output
-              </div>
-            )}
-          </Panel>
-          <Panel title="05 · Process log" index="TTY">
+        <section aria-label="Preview" className="flex min-w-0 flex-col items-center justify-center gap-4 bg-void p-5">
+          {videoUrl ? (
+            <div className="w-full max-w-[720px]">
+              <video src={videoUrl} controls autoPlay loop className="aspect-video w-full rounded-lg bg-black" />
+              <a
+                href={videoUrl}
+                download="as-ruined.mp4"
+                className="mt-3 inline-flex items-center gap-2 text-sm text-accent hover:underline"
+              >
+                <Download size={14} /> Download MP4
+              </a>
+            </div>
+          ) : (
+            <div className="flex aspect-video w-full max-w-[720px] items-center justify-center overflow-hidden rounded-lg bg-[#241325]">
+              {previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={previewUrl} alt="As-built render" className="size-full object-contain" />
+              ) : (
+                <p className="max-w-[380px] text-center leading-relaxed text-dim">
+                  Upload a render to begin. The simulated ruin plays here.
+                </p>
+              )}
+            </div>
+          )}
+          <p className="font-mono text-xs tracking-[0.08em] text-dim">
+            {videoUrl ? "OUTPUT · AS-RUINED" : previewUrl ? "INPUT · AS-BUILT" : "NO MEDIA"}
+          </p>
+          <div className="w-full max-w-[720px]">
             <Terminal lines={lines} percent={percent} busy={busy} />
-          </Panel>
-        </div>
-      </main>
-    </div>
+          </div>
+        </section>
+      </section>
+    </main>
   );
 }
