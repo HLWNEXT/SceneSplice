@@ -72,13 +72,10 @@ export function Studio() {
     setLines([]);
     try {
       let inputFile = file;
-      let depthName: string | undefined;
       if (source === "map") {
         log("Capturing white-box view...");
         const shot = await captureRef.current!();
         inputFile = shot.image;
-        log("Uploading depth guide...");
-        depthName = (await uploadImage(shot.depth)).name;
       }
       log(`Uploading ${inputFile!.name}...`);
       const { name } = await uploadImage(inputFile!);
@@ -88,7 +85,7 @@ export function Studio() {
       log(`T+${years.toLocaleString("en-US")}yr seed ${seed} → ${decayPrompt}`);
       const clientId = crypto.randomUUID();
       const { promptId } = await queuePrompt(
-        { mode: source, imageName: name, depthName, decayPrompt, atmospherePrompt: atmosphere.prompt, seed },
+        { mode: source, imageName: name, decayPrompt, atmospherePrompt: atmosphere.prompt, seed },
         clientId,
       );
       promptIdRef.current = promptId;

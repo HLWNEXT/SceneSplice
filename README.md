@@ -15,7 +15,7 @@ npm test        # typecheck
 
 ## Status
 
-The UI talks to ComfyUI through a Next.js proxy at `/comfy` (set `COMFY_URL` in `.env.local`). The workflow in `workflows/decay.api.json` is a draft and has not yet been validated against the server; node IDs the UI writes to are listed in `lib/workflow.ts`.
+The UI talks to ComfyUI through a Next.js proxy at `/comfy` (set `COMFY_URL` in `.env.local`). The workflow in `workflows/decay.api.json` mirrors `workflows/image_flux_ltx25.json`, a graph already validated on the target server: FLUX Kontext edits the uploaded image into a ruined keyframe, then LTX-2.5 (22B distilled, with audio) animates it in a base pass + 2x latent-upscale refine pass. Node IDs the UI writes to are listed in `lib/workflow.ts`. There is no ControlNet/depth-guidance branch — map mode reuses the same FLUX/LTX path as upload mode, with an added prompt prefix telling FLUX the input is a white massing model to realize.
 
 | Path | Purpose |
 | --- | --- |
