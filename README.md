@@ -24,6 +24,8 @@ The UI talks to ComfyUI through a Next.js proxy at `/comfy` (set `COMFY_URL` in 
 | `components/image-dropzone.tsx` | Drag-and-drop uploader with preview |
 | `lib/decay.ts` | Slider value → FLUX prompt text mapping |
 | `lib/comfy.ts` | ComfyUI client: upload, queue, progress, result, cancel |
-| `lib/workflow.ts` | Injects UI values into the workflow JSON |
+| `lib/workflow.ts` | Injects UI values into the workflow JSON (upload or map mode) |
+| `lib/geo.ts`, `app/api/geo/*` | Address search and OpenStreetMap building data |
+| `lib/whitebox.ts`, `components/map-picker.tsx` | 3D white-box model and shaded/depth capture |
 
 Originally based on Comfy-Org/comfy-reshoot (MIT, see `LICENSE` and `THIRD_PARTY_NOTICES/`).

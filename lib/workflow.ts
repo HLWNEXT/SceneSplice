@@ -2,6 +2,8 @@
 // workflow from ComfyUI, update these IDs (enable Settings > Dev mode > "Save (API format)").
 export const NODE = {
   inputImage: "4",
+  depthImage: "40",
+  controlNetApply: "43",
   fluxPrompt: "7",
   fluxSampler: "11",
   ltxPrompt: "22",
@@ -24,10 +26,20 @@ export const NODE_PROGRESS: Record<string, { label: string; from: number; to: nu
   "31": { label: "Encoding MP4...", from: 96, to: 99 },
 };
 
-type Workflow =Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+type Workflow = Record<string, { class_type: string; inputs: Record<string, unknown> }>;
+
+/** Added to the FLUX prompt in map mode, where the input is a white-box render rather than a photo. */
+export const MAP_PROMPT_PREFIX =
+  "Transform this white massing model of an urban block into a photorealistic photograph of the real buildings, keeping the exact geometry, camera angle and layout. Then age it: ";
+
+const CONTROLNET_NODES = ["40", "41", "42", "43"];
 
 export type WorkflowParams = {
+  /** "upload": user-supplied render, no depth guide. "map": white-box render + depth ControlNet. */
+  mode?: "upload" | "map";
   imageName: string;
+  /** Required in map mode. */
+  depthName?: string;
   decayPrompt: string;
   atmospherePrompt: string;
   seed: number;
@@ -41,7 +53,15 @@ export function buildWorkflow(template: Workflow, p: WorkflowParams): Workflow {
     wf[id].inputs[key] = value;
   };
   set(NODE.inputImage, "image", p.imageName);
-  set(NODE.fluxPrompt, "text", p.decayPrompt);
+  if (p.mode === "map") {
+    if (!p.depthName) throw new Error("Map mode needs a depth image.");
+    set(NODE.depthImage, "image", p.depthName);
+    set(NODE.fluxSampler, "positive", [NODE.controlNetApply, 0]);
+    set(NODE.fluxSampler, "negative", [NODE.controlNetApply, 1]);
+  } else {
+    for (const id of CONTROLNET_NODES) delete wf[id];
+  }
+  set(NODE.fluxPrompt, "text", (p.mode === "map" ? MAP_PROMPT_PREFIX : "") + p.decayPrompt);
   set(NODE.fluxSampler, "seed", p.seed);
   set(NODE.ltxPrompt, "text", p.atmospherePrompt);
   set(NODE.ltxSampler, "noise_seed", p.seed);

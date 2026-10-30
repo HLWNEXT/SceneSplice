@@ -1,13 +1,14 @@
 "use client";
 
 import { Download, Play } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ATMOSPHERES } from "../lib/atmosphere";
 import { ComfyError, cancelPrompt, checkServer, queuePrompt, trackProgress, uploadImage, viewUrl } from "../lib/comfy";
 import { yearsToPrompt } from "../lib/decay";
 import { AtmosphereSelect } from "./atmosphere-select";
 import { ChronoSlider } from "./chrono-slider";
 import { ImageDropzone } from "./image-dropzone";
+import { MapPicker, type CaptureFn } from "./map-picker";
 import { Terminal, type LogLine } from "./terminal";
 
 export function Studio() {
@@ -23,6 +24,14 @@ export function Studio() {
   const promptIdRef = useRef<string | null>(null);
   const [online, setOnline] = useState<boolean | null>(null);
   const lineId = useRef(0);
+  const [source, setSource] = useState<"upload" | "map">("upload");
+  const captureRef = useRef<CaptureFn | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const canRun = source === "upload" ? !!file : mapReady;
+  const onCaptureReady = useCallback((fn: CaptureFn | null) => {
+    captureRef.current = fn;
+    setMapReady(!!fn);
+  }, []);
 
   useEffect(() => {
     if (!file) return setPreviewUrl(null);
@@ -53,7 +62,7 @@ export function Studio() {
     setLines((l) => [...l, { id: lineId.current++, time: new Date().toLocaleTimeString("en-GB"), text }]);
 
   async function simulate() {
-    if (!file || busy) return;
+    if (!canRun || busy) return;
     const atmosphere = ATMOSPHERES.find((a) => a.id === atmosphereId)!;
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -62,15 +71,24 @@ export function Studio() {
     setVideoUrl(null);
     setLines([]);
     try {
-      log(`Uploading ${file.name}...`);
-      const { name } = await uploadImage(file);
+      let inputFile = file;
+      let depthName: string | undefined;
+      if (source === "map") {
+        log("Capturing white-box view...");
+        const shot = await captureRef.current!();
+        inputFile = shot.image;
+        log("Uploading depth guide...");
+        depthName = (await uploadImage(shot.depth)).name;
+      }
+      log(`Uploading ${inputFile!.name}...`);
+      const { name } = await uploadImage(inputFile!);
       log(`Input staged as ${name}`);
       const decayPrompt = yearsToPrompt(years);
       const seed = Math.floor(Math.random() * 2 ** 32);
       log(`T+${years.toLocaleString("en-US")}yr seed ${seed} → ${decayPrompt}`);
       const clientId = crypto.randomUUID();
       const { promptId } = await queuePrompt(
-        { imageName: name, decayPrompt, atmospherePrompt: atmosphere.prompt, seed },
+        { mode: source, imageName: name, depthName, decayPrompt, atmospherePrompt: atmosphere.prompt, seed },
         clientId,
       );
       promptIdRef.current = promptId;
@@ -124,8 +142,33 @@ export function Studio() {
       >
         <aside className="flex flex-col gap-4 border-b border-line p-5 md:border-b-0 md:border-r">
           <div className="grid gap-2 text-[13px] text-[#d4d4d8]">
-            <span>01 · As-built render</span>
-            <ImageDropzone file={file} previewUrl={previewUrl} disabled={busy} onFile={setFile} />
+            <span>01 · As-built source</span>
+            <div role="radiogroup" aria-label="Source" className="grid grid-cols-2 gap-2">
+              {([["upload", "Upload render"], ["map", "Place on map"]] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-checked={source === id}
+                  disabled={busy}
+                  onClick={() => setSource(id)}
+                  className={`rounded-lg border px-3 py-2 text-[13px] font-semibold disabled:opacity-45 ${
+                    source === id
+                      ? "border-accent bg-accent text-on-accent"
+                      : "border-[#595b64] bg-[#292a30] text-white hover:bg-[#33343b]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {source === "upload" ? (
+              <ImageDropzone file={file} previewUrl={previewUrl} disabled={busy} onFile={setFile} />
+            ) : (
+              <p className="text-xs leading-relaxed text-dim">
+                Search an address in the preview, orbit the white-box model to frame a view, then simulate.
+              </p>
+            )}
           </div>
           <fieldset className="grid gap-3 rounded-[10px] border border-edge p-3.5">
             <legend className="px-1.5 text-[13px] text-[#d4d4d8]">02 · Time elapsed</legend>
@@ -138,7 +181,7 @@ export function Studio() {
           <button
             type="button"
             onClick={simulate}
-            disabled={!file || busy || online === false}
+            disabled={!canRun || busy || online === false}
             className="flex items-center justify-center gap-2 rounded-lg border border-accent bg-accent px-3 py-3 font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-45"
           >
             <Play size={16} fill="currentColor" />
@@ -156,6 +199,11 @@ export function Studio() {
         </aside>
 
         <section aria-label="Preview" className="flex min-w-0 flex-col items-center justify-center gap-4 bg-void p-5">
+          {source === "map" && (
+            <div className={videoUrl ? "hidden" : "contents"}>
+              <MapPicker disabled={busy} onCaptureReady={onCaptureReady} />
+            </div>
+          )}
           {videoUrl ? (
             <div className="w-full max-w-[720px]">
               <video src={videoUrl} controls autoPlay loop className="aspect-video w-full rounded-lg bg-black" />
@@ -166,8 +214,13 @@ export function Studio() {
               >
                 <Download size={14} /> Download MP4
               </a>
+              {source === "map" && (
+                <button type="button" onClick={() => setVideoUrl(null)} className="ml-4 text-sm text-dim hover:text-white">
+                  Back to map
+                </button>
+              )}
             </div>
-          ) : (
+          ) : source === "map" ? null : (
             <div className="flex aspect-video w-full max-w-[720px] items-center justify-center overflow-hidden rounded-lg bg-[#241325]">
               {previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -180,7 +233,7 @@ export function Studio() {
             </div>
           )}
           <p className="font-mono text-xs tracking-[0.08em] text-dim">
-            {videoUrl ? "OUTPUT · AS-RUINED" : previewUrl ? "INPUT · AS-BUILT" : "NO MEDIA"}
+            {videoUrl ? "OUTPUT · AS-RUINED" : source === "map" ? "" : previewUrl ? "INPUT · AS-BUILT" : "NO MEDIA"}
           </p>
           <div className="w-full max-w-[720px]">
             <Terminal lines={lines} percent={percent} busy={busy} />
