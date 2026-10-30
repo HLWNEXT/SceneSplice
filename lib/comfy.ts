@@ -1,63 +1,61 @@
-import { join } from "node:path";
-import { Comfy, type Job } from "@comfyorg/sdk";
+// ComfyUI client. Every function is a placeholder that simulates the real call;
+// the real endpoint each one will use is noted above it.
+// TODO: swap for fetch/WebSocket calls against NEXT_PUBLIC_COMFY_URL (tunnel URL).
 
-export type JobOutput = { id: string; name: string; type: string; url: string };
-export type PublicJob = { id: string; status: string; outputs: JobOutput[]; error: unknown };
+export const COMFY_URL = process.env.NEXT_PUBLIC_COMFY_URL ?? "http://127.0.0.1:8188";
 
-function client() {
-  const apiKey = process.env.COMFY_API_KEY?.trim();
-  if (!apiKey) throw new Error("COMFY_API_KEY is not configured.");
-  return new Comfy({ apiKey, clientInfo: "comfy-reshoot-guide" });
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export type ProgressEvent = { percent: number; message: string };
+
+export type SimulateInput = {
+  imageName: string;
+  years: number;
+  /** Text for the FLUX positive prompt node. */
+  decayPrompt: string;
+  /** Text for the LTX motion prompt node. */
+  atmospherePrompt: string;
+};
+
+/** POST {COMFY_URL}/upload/image (multipart, field "image") -> { name, subfolder, type } */
+export async function uploadImage(file: File): Promise<{ name: string }> {
+  await sleep(600);
+  return { name: file.name };
 }
 
-async function publicJob(job: Job): Promise<PublicJob> {
-  return {
-    id: job.id,
-    status: job.status,
-    outputs: job.outputs.map((output) => ({
-      id: output.id,
-      name: output.name,
-      type: output.type,
-      url: `/api/jobs/${job.id}/outputs/${output.id}`,
-    })),
-    error: job.error,
-  };
+/** POST {COMFY_URL}/prompt { prompt: workflow, client_id } -> { prompt_id } */
+export async function queuePrompt(input: SimulateInput): Promise<{ promptId: string }> {
+  void input;
+  await sleep(300);
+  return { promptId: crypto.randomUUID() };
 }
 
-export async function submitWorkflow(
-  video: File,
-  step: "analyze" | "generate",
-  settings: { aspect: string; megapixels: number; azimuth: number; elevation: number; distance: number; prompt: string },
-) {
-  const comfy = client();
-  const workflow = await comfy.workflows.fromFile(join(process.cwd(), "workflows", `${step}.api.json`));
-  const asset = comfy.assets.fromBytes(new Uint8Array(await video.arrayBuffer()), {
-    filename: video.name,
-    contentType: video.type || "video/mp4",
-  });
-  workflow.setInput("1", "file", asset);
-  workflow.setInput("2", "duration", 15);
-  workflow.setInput("2", "aspect_ratio", settings.aspect);
-  workflow.setInput("2", "megapixels", settings.megapixels);
+const MOCK_STEPS: ProgressEvent[] = [
+  { percent: 8, message: "Initializing ControlNet..." },
+  { percent: 22, message: "Extracting depth + edge maps..." },
+  { percent: 45, message: "Running FLUX 3 pass..." },
+  { percent: 70, message: "Generating LTX motion..." },
+  { percent: 92, message: "Encoding MP4..." },
+  { percent: 100, message: "Done." },
+];
 
-  if (step === "generate") {
-    workflow.setInput("5", "azimuth", settings.azimuth);
-    workflow.setInput("5", "elevation", settings.elevation);
-    workflow.setInput("5", "distance", settings.distance);
-    workflow.setInput("20", "prompt", settings.prompt.trim() ? `crossview. ${settings.prompt.trim()}` : "crossview.");
+/** Live: WebSocket {COMFY_URL}/ws?clientId=... ("progress", "executing") or poll GET /history/{promptId}. */
+export async function trackProgress(
+  promptId: string,
+  onProgress: (e: ProgressEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  void promptId;
+  for (const step of MOCK_STEPS) {
+    await sleep(1100);
+    if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
+    onProgress(step);
   }
-
-  return publicJob(await comfy.submit(workflow));
 }
 
-export async function getJob(id: string) {
-  return publicJob(await client().jobs.get(id));
-}
-
-export async function getOutput(jobId: string, outputId: string) {
-  const job = await client().jobs.get(jobId);
-  const output = job.outputs.find((candidate) => candidate.id === outputId);
-  if (!output) throw new Error("Output not found on this job.");
-  const { url } = await output.getDownloadUrl();
-  return fetch(url);
+/** GET {COMFY_URL}/view?filename=...&subfolder=...&type=output -> video bytes. Returns a playable URL. */
+export async function fetchResult(promptId: string): Promise<string> {
+  void promptId;
+  await sleep(200);
+  return "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 }

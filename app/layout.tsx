@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Re-shoot a video · Comfy guide",
-  description: "Analyze video depth, aim a camera, and run a Comfy workflow.",
+  title: "As-Ruined · Entropy Studio",
+  description: "Scrub an architectural render forward through time and simulate its decay.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

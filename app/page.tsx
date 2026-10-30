@@ -1,5 +1,5 @@
-import { AppRunner } from "../components/app-runner";
+import { Studio } from "../components/studio";
 
 export default function Page() {
-  return <AppRunner />;
+  return <Studio />;
 }
