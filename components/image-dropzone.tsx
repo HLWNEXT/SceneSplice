@@ -27,10 +27,10 @@ export function ImageDropzone({ file, previewUrl, disabled, onFile }: Props) {
 
   if (file && previewUrl) {
     return (
-      <div className="overflow-hidden rounded-lg border border-edge bg-field">
+      <div className="overflow-hidden rounded-none border border-edge bg-field">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={previewUrl} alt="As-built render" className="aspect-video w-full object-contain" />
-        <div className="flex items-center justify-between border-t border-line px-3 py-2 text-xs text-dim">
+        <div className="flex items-center justify-between border-t border-line px-3 py-2 font-serif text-xs text-dim">
           <span className="truncate">{file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB</span>
           <button
             type="button"
@@ -54,8 +54,8 @@ export function ImageDropzone({ file, previewUrl, disabled, onFile }: Props) {
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={(e) => { e.preventDefault(); setDragging(false); accept(e.dataTransfer.files[0]); }}
-        className={`flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-field text-sm transition-colors ${
-          dragging ? "border-accent text-accent" : "border-edge text-dim hover:border-accent hover:text-white"
+        className={`flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-none border border-dashed bg-field font-serif text-sm transition-colors ${
+          dragging ? "border-accent text-accent" : "border-edge text-dim hover:border-accent hover:text-ink"
         }`}
       >
         <ImageUp size={28} strokeWidth={1.5} />
@@ -69,7 +69,7 @@ export function ImageDropzone({ file, previewUrl, disabled, onFile }: Props) {
         hidden
         onChange={(e) => { accept(e.target.files?.[0]); e.target.value = ""; }}
       />
-      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-xs text-oxide">{error}</p>}
     </div>
   );
 }

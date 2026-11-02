@@ -21,8 +21,8 @@ export function AtmosphereSelect({ value, disabled, onChange }: Props) {
             aria-checked={active}
             disabled={disabled}
             onClick={() => onChange(a.id)}
-            className={`rounded-lg border px-3 py-2.5 text-left text-[13px] font-semibold transition-colors disabled:opacity-45 ${
-              active ? "border-accent bg-accent text-on-accent" : "border-[#595b64] bg-[#292a30] text-white hover:bg-[#33343b]"
+            className={`rounded-none border px-3 py-2.5 text-left font-serif text-[13px] font-semibold transition-colors disabled:opacity-45 ${
+              active ? "border-accent bg-accent text-on-accent" : "border-edge bg-field text-ink hover:bg-panel"
             }`}
           >
             {a.label}

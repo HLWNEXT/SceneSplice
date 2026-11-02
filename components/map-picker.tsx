@@ -93,23 +93,23 @@ export function MapPicker({ disabled, onCaptureReady }: Props) {
           disabled={disabled}
           placeholder="Search an address, e.g. 350 5th Ave, New York"
           aria-label="Address"
-          className="min-w-0 flex-1 rounded-lg border border-edge bg-field px-3 py-2.5 text-sm outline-none focus:border-accent"
+          className="min-w-0 flex-1 rounded-none border border-stage-line bg-stage-well px-3 py-2.5 font-serif text-sm text-stage-dim outline-none placeholder:text-stage-dim/60 focus:border-accent"
         />
         <button
           type="submit"
           disabled={disabled || loading || query.trim().length < 3}
-          className="flex items-center gap-2 rounded-lg border border-[#595b64] bg-[#292a30] px-3 py-2.5 text-sm font-semibold hover:bg-[#33343b] disabled:opacity-45"
+          className="flex items-center gap-2 rounded-none border border-stage-line bg-stage-well px-3 py-2.5 font-serif text-sm font-semibold text-stage-dim hover:border-accent hover:text-on-accent disabled:opacity-45"
         >
           {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />} Search
         </button>
         {results.length > 0 && (
-          <ul className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded-lg border border-edge bg-panel text-sm shadow-xl">
+          <ul className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded-none border border-stage-line bg-stage-well font-serif text-sm text-stage-dim shadow-xl">
             {results.map((r) => (
               <li key={`${r.lat},${r.lon}`}>
                 <button
                   type="button"
                   onClick={() => pick(r)}
-                  className="block w-full px-3 py-2 text-left hover:bg-[#292a30]"
+                  className="block w-full px-3 py-2 text-left hover:bg-stage hover:text-on-accent"
                 >
                   {r.label}
                 </button>
@@ -120,17 +120,17 @@ export function MapPicker({ disabled, onCaptureReady }: Props) {
       </form>
 
       <div className="relative">
-        <canvas ref={canvasRef} className="aspect-video w-full rounded-lg bg-[#c9d3dc]" />
+        <canvas ref={canvasRef} className="aspect-video w-full rounded-none bg-[#d8cba3]" />
         {!status && (
-          <p className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-[#333]">
+          <p className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center font-serif text-sm text-ink">
             Search an address to generate the white-box model.
           </p>
         )}
       </div>
-      <p className="font-mono text-xs tracking-[0.08em] text-dim">
-        {status ? `${status.toUpperCase()} · DRAG TO ORBIT, SCROLL TO ZOOM` : "WHITE-BOX MODEL · OPENSTREETMAP"}
+      <p className="plaque-label text-xs text-stage-dim">
+        {status ? `${status} · Drag to orbit, scroll to zoom` : "White-box model · OpenStreetMap"}
       </p>
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className="font-serif text-sm text-stage-oxide">{error}</p>}
     </div>
   );
 }
