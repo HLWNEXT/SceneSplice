@@ -151,10 +151,24 @@ async function trackGraph(
 ): Promise<OutputFile> {
   const closeSocket = watchSocket(promptId, clientId, nodeProgress, onProgress, signal);
   const started = Date.now();
+  const MAX_CONSECUTIVE_POLL_FAILURES = 5;
+  let consecutivePollFailures = 0;
   try {
     for (;;) {
       await sleep(1500, signal);
-      const history = await (await request(`/history/${promptId}`, { signal })).json();
+      let history: any;
+      try {
+        history = await (await request(`/history/${promptId}`, { signal })).json();
+        consecutivePollFailures = 0;
+      } catch (err) {
+        // A single failed poll (server restart, momentary overload, network blip) shouldn't kill an
+        // otherwise-healthy run — only give up after several in a row.
+        if (err instanceof DOMException && err.name === "AbortError") throw err;
+        consecutivePollFailures++;
+        if (consecutivePollFailures >= MAX_CONSECUTIVE_POLL_FAILURES) throw err;
+        onProgress({ percent: 0, message: `Lost contact with ComfyUI, retrying... (${consecutivePollFailures}/${MAX_CONSECUTIVE_POLL_FAILURES})` });
+        continue;
+      }
       const entry = history[promptId];
       if (!entry) {
         if (!WS_URL) onProgress({ percent: 0, message: `Running... ${Math.round((Date.now() - started) / 1000)}s` });
