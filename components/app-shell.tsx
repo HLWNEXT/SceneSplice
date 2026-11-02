@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { Studio } from "./studio";
+import { StorylineCanvas } from "./storyline/storyline-canvas";
 import { WhatIfStreetStudio } from "./whatifstreet/studio";
 
-type Mode = "decay" | "whatifstreet";
+type Mode = "decay" | "whatifstreet" | "storyline";
 
 export function AppShell() {
   const [mode, setMode] = useState<Mode>("decay");
@@ -15,6 +16,7 @@ export function AppShell() {
         {([
           ["decay", "Decay Studio"],
           ["whatifstreet", "WhatIfStreet"],
+          ["storyline", "Storyline"],
         ] as const).map(([id, label]) => (
           <button
             key={id}
@@ -30,7 +32,7 @@ export function AppShell() {
           </button>
         ))}
       </nav>
-      {mode === "decay" ? <Studio /> : <WhatIfStreetStudio />}
+      {mode === "decay" ? <Studio /> : mode === "whatifstreet" ? <WhatIfStreetStudio /> : <StorylineCanvas />}
     </>
   );
 }
