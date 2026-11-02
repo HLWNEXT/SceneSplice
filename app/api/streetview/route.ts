@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { SETTINGS_COOKIE, parseSettings, resolveMapsKey } from "../../../lib/server-settings";
 import { buildImageUrl, buildMetadataUrl, type StreetViewParams } from "../../../lib/streetview";
 
 function num(v: string | null): number | undefined {
@@ -7,7 +8,7 @@ function num(v: string | null): number | undefined {
   return Number.isFinite(n) ? n : NaN;
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   const p = new URL(req.url).searchParams;
   const lat = num(p.get("lat"));
   const lon = num(p.get("lon"));
@@ -21,8 +22,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Invalid heading, pitch, or fov." }, { status: 400 });
   }
 
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "Street View is not configured." }, { status: 500 });
+  const apiKey = resolveMapsKey(parseSettings(req.cookies.get(SETTINGS_COOKIE)?.value), process.env);
+  if (!apiKey) return NextResponse.json({ error: "Street View needs a Google Maps API key — add one in Settings." }, { status: 500 });
 
   const params: StreetViewParams = { lat, lon, heading, pitch, fov };
 
