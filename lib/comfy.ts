@@ -204,9 +204,15 @@ export async function trackVideoStage(
   return trackGraph(promptId, clientId, VIDEO_NODE_PROGRESS, NODE_VIDEO.outputVideo, onProgress, signal);
 }
 
-/** The `image`/`video` input name a generated OutputFile should be re-loaded as in a later stage's LoadImage node. */
+/**
+ * The `image` input name a generated OutputFile should be re-loaded as in a later stage's LoadImage
+ * node. LoadImage's file picker only searches ComfyUI's `input/` directory by default; a SaveImage
+ * result lives in `output/` (type "output"), so it has to be addressed with ComfyUI's `[type]`
+ * filename-annotation convention or LoadImage's "Custom validation failed" check rejects it outright.
+ */
 export function outputFileName(f: OutputFile): string {
-  return f.subfolder ? `${f.subfolder}/${f.filename}` : f.filename;
+  const name = f.subfolder ? `${f.subfolder}/${f.filename}` : f.filename;
+  return `${name} [${f.type}]`;
 }
 
 /** URL of a generated file, served by GET /view. */

@@ -294,7 +294,11 @@ export function WhatIfStreetStudio() {
             ))}
           </div>
 
-          {preview === "streetview" && <StreetViewPicker disabled={busy} onCaptureReady={onCaptureReady} />}
+          {/* Always mounted (not conditionally, like the other two panels) — unmounting it would fire its
+              cleanup effect, which reports the capture as lost and would wipe out a just-generated image. */}
+          <div className={preview === "streetview" ? "contents" : "hidden"}>
+            <StreetViewPicker disabled={busy} onCaptureReady={onCaptureReady} />
+          </div>
 
           {preview === "image" && (
             <div className="w-full max-w-[720px]">
@@ -306,7 +310,20 @@ export function WhatIfStreetStudio() {
                   <p className="max-w-[380px] text-center font-serif leading-relaxed text-stage-dim">No image yet.</p>
                 )}
               </div>
-              <p className="plaque-label mt-2 text-xs text-stage-dim">Output · Reimagined street</p>
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <p className="plaque-label text-xs text-stage-dim">Output · Reimagined street</p>
+                {generatedImage && (
+                  <button
+                    type="button"
+                    onClick={generateVideo}
+                    disabled={busy || online === false}
+                    className="plaque-label flex items-center gap-1.5 rounded-none border border-accent bg-accent px-3 py-1.5 text-[11px] text-on-accent disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    <Play size={12} fill="currentColor" />
+                    {runningStage === "video" ? "Animating…" : generatedVideo ? "Regenerate Video" : "Turn into Video"}
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
