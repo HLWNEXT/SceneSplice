@@ -8,6 +8,7 @@ import {
   clampYear,
   deleteSubtree,
   fromJson,
+  keyframeSource,
   pathToRoot,
   planVideo,
   roundYear,
@@ -89,4 +90,19 @@ test("buildPrompt includes the event and its history", () => {
   const p = buildPrompt(tree, mid.id, "a library");
   assert.match(p, /Year 8/);
   assert.match(p, /Preceding history: Year 0/);
+});
+
+test("keyframeSource picks the nearest ancestor keyframe, never the node itself", () => {
+  const tree = fromJson(MOCK_STORY);
+  const root = rootOf(tree);
+  const mid = childrenOf(tree, root.id)[0];
+  const leafish = childrenOf(tree, mid.id)[0];
+  assert.equal(keyframeSource(tree, leafish.id), null);
+  const f = (n: string) => ({ filename: n, subfolder: "", type: "output" });
+  root.keyframe = { prompt: "", image: "", generatedAt: 0, file: f("root.png") };
+  assert.equal(keyframeSource(tree, leafish.id)?.filename, "root.png");
+  mid.keyframe = { prompt: "", image: "", generatedAt: 0, file: f("mid.png") };
+  leafish.keyframe = { prompt: "", image: "", generatedAt: 0, file: f("self.png") };
+  assert.equal(keyframeSource(tree, leafish.id)?.filename, "mid.png");
+  assert.equal(keyframeSource(tree, root.id), null);
 });

@@ -4,6 +4,7 @@ import {
   Clapperboard,
   Copy,
   ImagePlus,
+  ImageUp,
   LoaderCircle,
   Maximize,
   Plus,
@@ -12,6 +13,14 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  ComfyError,
+  outputFileName,
+  queueImageStage,
+  trackImageStage,
+  uploadImage,
+  viewUrl,
+} from "../../lib/comfy";
 import {
   AXIS_TICKS,
   MOCK_LLM_STORY,
@@ -26,6 +35,7 @@ import {
   formatYear,
   fromJson,
   isLeaf,
+  keyframeSource,
   pathToRoot,
   placeholderImage,
   planVideo,
@@ -85,6 +95,9 @@ export function StorylineCanvas() {
   const [writing, setWriting] = useState(false);
   const [job, setJob] = useState<Job | null>(null);
   const [status, setStatus] = useState<Status>(null);
+  // Real ComfyUI is the default; mock mode renders local placeholders so the UI works offline.
+  const [useMock, setUseMock] = useState(false);
+  const [baseImage, setBaseImage] = useState<{ name: string; preview: string } | null>(null);
 
   const vpRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{ sx: number; sy: number; vx: number; vy: number } | null>(null);
@@ -196,16 +209,53 @@ export function StorylineCanvas() {
     setJob(null);
   };
 
+  const uploadBase = async (file: File | undefined) => {
+    if (!file) return;
+    setStatus({ kind: "info", text: "Uploading base photo to ComfyUI…" });
+    try {
+      const { name } = await uploadImage(file);
+      setBaseImage({ name, preview: URL.createObjectURL(file) });
+      setStatus({ kind: "info", text: "Base photo uploaded. Root keyframes will be edited from it." });
+    } catch (err) {
+      setStatus({ kind: "error", text: err instanceof Error ? err.message : "Upload failed." });
+    }
+  };
+
+  // Keyframes chain: each beat is an edit of its nearest ancestor's keyframe (root: the base photo).
   const generateKeyframe = async (id: string) => {
     if (busy.has(id)) return;
     const prompt = buildPrompt(tree, id, subject);
     const year = tree[id].year;
+    const source = keyframeSource(tree, id);
+    if (!useMock && !source && !baseImage) {
+      setStatus({ kind: "error", text: "Upload a base photo first (toolbar), or enable Mock ComfyUI." });
+      return;
+    }
     setBusy((b) => new Set(b).add(id));
-    setStatus({ kind: "info", text: `Queued on ComfyUI: ${prompt}` });
+    setStatus({ kind: "info", text: `${formatYear(year)}: queuing on ComfyUI…` });
     try {
-      const image = await mockComfyKeyframe(prompt, year);
-      patch(id, { keyframe: { prompt, image, generatedAt: Date.now() } });
+      if (useMock) {
+        const image = await mockComfyKeyframe(prompt, year);
+        patch(id, { keyframe: { prompt, image, generatedAt: Date.now() } });
+      } else {
+        const clientId = crypto.randomUUID();
+        const { promptId } = await queueImageStage(
+          {
+            imageName: source ? outputFileName(source) : baseImage!.name,
+            geminiPrompt: prompt,
+            seed: Math.floor(Math.random() * 2 ** 31),
+          },
+          clientId,
+        );
+        const file = await trackImageStage(promptId, clientId, (e) =>
+          setStatus({ kind: "info", text: `${formatYear(year)}: ${e.message} (${e.percent}%)` }),
+        );
+        patch(id, { keyframe: { prompt, image: viewUrl(file), file, generatedAt: Date.now() } });
+      }
       setStatus({ kind: "info", text: `Keyframe ready for ${formatYear(year)}.` });
+    } catch (err) {
+      const msg = err instanceof ComfyError || err instanceof Error ? err.message : "Keyframe failed.";
+      setStatus({ kind: "error", text: `${formatYear(year)}: ${msg}` });
     } finally {
       setBusy((b) => {
         const n = new Set(b);
@@ -307,6 +357,30 @@ export function StorylineCanvas() {
           <Clapperboard size={14} />
           Render Video Path
         </button>
+        <label
+          className={`${btn} cursor-pointer border-stage-line text-stage-dim hover:text-void`}
+          title="Photo the root keyframe is edited from"
+        >
+          {baseImage ? (
+            <img src={baseImage.preview} alt="" className="h-4 w-6 object-cover" />
+          ) : (
+            <ImageUp size={13} />
+          )}
+          {baseImage ? "Change base photo" : "Base photo"}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              uploadBase(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-stage-dim">
+          <input type="checkbox" checked={useMock} onChange={(e) => setUseMock(e.target.checked)} />
+          Mock ComfyUI
+        </label>
         <div className="ml-auto flex items-center gap-2">
           <button type="button" onClick={copyJson} className={`${btn} border-stage-line text-stage-dim hover:text-void`}>
             <Copy size={13} /> JSON

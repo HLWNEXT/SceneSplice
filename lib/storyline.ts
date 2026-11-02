@@ -2,7 +2,11 @@
 // its `year`, so dragging horizontally edits time. The log scale gives each decade equal width
 // (same spirit as lib/decay.ts), which is what makes Year 10 / 100 / 10,000 sit on one axis.
 
-export type Keyframe = { prompt: string; image: string; generatedAt: number };
+// Structural match for comfy.ts's OutputFile (kept local so this module stays free of JSON imports).
+export type ComfyFile = { filename: string; subfolder: string; type: string };
+
+// `image` is what the UI shows; `file` is the ComfyUI output it came from (absent for mock renders).
+export type Keyframe = { prompt: string; image: string; generatedAt: number; file?: ComfyFile };
 
 export type StoryNode = {
   id: string;
@@ -151,7 +155,7 @@ export function buildPrompt(tree: StoryTree, id: string, subject: string): strin
     .map((n) => `${formatYear(n.year)}: ${n.text}`)
     .join(" ");
   return [
-    `Architectural photograph of ${subject}, ${formatYear(node.year)} after completion.`,
+    `Edit THIS photograph of ${subject}: keep the building, camera position and framing unchanged, and show how it looks ${formatYear(node.year)} after completion.`,
     `Event: ${node.text}`,
     history && `Preceding history: ${history}`,
     "Same camera position, overcast light, photoreal, progressive material decay and overgrowth.",
@@ -187,6 +191,13 @@ export function placeholderImage(seedText: string, year: number): string {
     `<rect width="170" height="100" fill="url(#g)"/>${bars}${green}` +
     `<rect y="92" width="170" height="8" fill="hsl(${hue},20%,12%)"/></svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+// The image a node's keyframe should be edited from: the nearest ancestor's generated keyframe,
+// or null when none exists yet (the caller then falls back to the user's base photo).
+export function keyframeSource(tree: StoryTree, id: string): ComfyFile | null {
+  const ancestors = pathToRoot(tree, id).slice(0, -1).reverse();
+  return ancestors.find((n) => n.keyframe?.file)?.keyframe?.file ?? null;
 }
 
 export type RenderPlan = {
