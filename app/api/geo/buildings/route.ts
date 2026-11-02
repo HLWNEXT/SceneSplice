@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildOverpassQuery } from "../../../../lib/geo";
 
-const USER_AGENT = "DecayUI/0.1 (HLW NEXT competition prototype)";
+const USER_AGENT = "SceneSplice/0.1 (HLW NEXT competition prototype)";
 const ENDPOINTS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
 
 export async function GET(req: Request) {

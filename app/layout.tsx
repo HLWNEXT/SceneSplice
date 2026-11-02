@@ -10,8 +10,8 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "As-Ruined · Entropy Studio",
-  description: "Scrub an architectural render forward through time and simulate its decay.",
+  title: "SceneSplice",
+  description: "Splice scenes through time: simulate architectural decay and branching what-if futures with ComfyUI.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

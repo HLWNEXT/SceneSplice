@@ -1,6 +1,8 @@
-# DecayUI — "As-Ruined" (Entropy Studio)
+# SceneSplice
 
-Dark-mode web UI for an architectural decay simulator. Upload a pristine render, scrub the Chrono-Slider forward in time (10 → 10,000 years), pick an atmospheric condition, and generate an animated ruin video through a ComfyUI backend.
+Web UI for splicing scenes through time with ComfyUI: a decay simulator (ruin an architectural render) and WhatIfStreet (re-imagine a real street under a what-if event).
+
+Decay Studio: Upload a pristine render, scrub the Chrono-Slider forward in time (10 → 10,000 years), pick an atmospheric condition, and generate an animated ruin video through a ComfyUI backend.
 
 Stack: Next.js, React, Tailwind CSS v4, lucide-react.
 

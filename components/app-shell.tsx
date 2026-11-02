@@ -18,6 +18,7 @@ export function AppShell() {
     <>
       <nav className="mx-auto flex w-[min(1120px,calc(100%-32px))] items-center gap-2 pt-6" aria-label="App mode">
         <span aria-hidden className="mr-2 size-5 rounded-full border-2 border-ink bg-accent shadow-[inset_0_0_0_3px_var(--color-field)]" />
+        <span className="plaque-label mr-3 text-sm font-bold text-ink">SceneSplice</span>
         {([
           ["decay", "Decay Studio"],
           ["whatifstreet", "WhatIfStreet"],

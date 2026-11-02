@@ -75,7 +75,7 @@ export async function checkServer(signal?: AbortSignal): Promise<boolean> {
 export async function uploadImage(file: File): Promise<{ name: string }> {
   const form = new FormData();
   const safe = file.name.replace(/[^\w.-]+/g, "_");
-  form.append("image", file, `decayui_${Date.now()}_${safe}`);
+  form.append("image", file, `scenesplice_${Date.now()}_${safe}`);
   form.append("overwrite", "true");
   const data = await (await request("/upload/image", { method: "POST", body: form })).json();
   return { name: data.subfolder ? `${data.subfolder}/${data.name}` : data.name };

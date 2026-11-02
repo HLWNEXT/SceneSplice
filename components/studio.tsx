@@ -119,7 +119,7 @@ export function Studio() {
     <main className="mx-auto w-[min(1120px,calc(100%-32px))] pb-16 pt-8">
       <header className="my-8">
         <div className="flex items-center justify-between">
-          <p className="plaque-label text-xs text-dim">Comfy · Entropy Studio</p>
+          <p className="plaque-label text-xs text-dim">SceneSplice · Decay Studio</p>
           <p className="plaque-label flex items-center gap-2 text-xs text-dim">
             <span
               className={`inline-block size-2 rounded-full ${online ? "bg-sage" : online === false ? "bg-oxide" : "bg-dim"}`}
@@ -128,7 +128,7 @@ export function Studio() {
           </p>
         </div>
         <h1 className="my-3 font-display text-[clamp(52px,9vw,100px)] font-semibold italic leading-[0.95] tracking-[-0.02em] text-ink">
-          As-Ruined
+          Decay Studio
         </h1>
         <div className="mb-4 h-px w-24 bg-accent" />
         <p className="max-w-[620px] font-serif leading-relaxed text-dim">
@@ -209,7 +209,7 @@ export function Studio() {
               <video src={videoUrl} controls autoPlay loop className="aspect-video w-full rounded-none bg-black" />
               <a
                 href={videoUrl}
-                download="as-ruined.mp4"
+                download="scenesplice.mp4"
                 className="mt-3 inline-flex items-center gap-2 text-sm text-accent hover:underline"
               >
                 <Download size={14} /> Download MP4
