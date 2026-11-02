@@ -265,31 +265,44 @@ export function ScenarioApp() {
   return (
     <main className="mx-auto w-[min(1120px,calc(100%-32px))] pb-16 pt-8">
       {/* 1 · Project header */}
-      <header className="my-8">
-        <div className="flex items-center justify-between">
-          <p className="plaque-label text-xs text-dim">Comfy · Location Scenario Simulator</p>
-          <p className="plaque-label flex items-center gap-2 text-xs text-dim">
-            <span className={`inline-block size-2 rounded-full ${online ? "bg-sage" : online === false ? "bg-oxide" : "bg-dim"}`} />
-            {online ? "Comfyui online" : online === false ? "Comfyui offline" : "Checking…"}
+      <header className="relative my-8 overflow-hidden rounded-3xl border-2 border-ink bg-field px-6 pb-8 pt-5 sm:px-10">
+        <div className="flex items-center justify-between gap-4">
+          <p className="plaque-label text-[11px] text-dim">SYS/01 · Location Scenario Simulator</p>
+          <p className="plaque-label flex items-center gap-2 text-[11px] text-dim">
+            <span className={`inline-block size-2.5 rounded-full border border-ink ${online ? "bg-accent" : online === false ? "bg-oxide" : "bg-line"}`} />
+            {online ? "ComfyUI online" : online === false ? "ComfyUI offline" : "Checking…"}
           </p>
         </div>
-        <h1 className="my-3 font-display text-[clamp(52px,9vw,100px)] font-semibold italic leading-[0.95] tracking-[-0.02em] text-ink">
-          WhatIfStreet
-        </h1>
-        <div className="mb-4 h-px w-24 bg-accent" />
-        <p className="max-w-[620px] font-serif leading-relaxed text-dim">
-          Pick a real street, a moment in the past or future, and one world-changing event. Watch how the street unfolds.
-        </p>
+        <div className="relative mt-6 flex flex-wrap items-end justify-between gap-6">
+          <div className="max-w-[640px]">
+            <h1 className="text-[clamp(38px,7vw,84px)] font-bold uppercase leading-[0.92] tracking-[-0.04em] text-ink">
+              What<span className="text-accent">If</span>
+              <br />
+              Street
+            </h1>
+            <div className="my-5 h-[3px] w-24 rounded-full bg-accent" />
+            <p className="text-sm leading-relaxed text-dim">
+              Pick a real street, a moment in the past or future, and one world-changing event. Watch how the street unfolds.
+            </p>
+          </div>
+          <div aria-hidden className="relative hidden h-44 w-60 shrink-0 sm:block">
+            <div className="retro-sun absolute left-1/2 top-0 w-36 -translate-x-1/2" />
+            <div className="absolute inset-x-0 top-[72px] h-px bg-ink" />
+            <div className="retro-floor absolute inset-x-0 top-[73px] h-24" />
+          </div>
+        </div>
       </header>
 
       {/* 2 · Instructions */}
       <ol className="mb-6 grid gap-3 md:grid-cols-3" aria-label="How it works">
         {STEPS.map(([title, body], i) => (
-          <li key={title} className="flex gap-3 border border-edge bg-field p-4">
-            <span className="font-display text-3xl font-semibold italic leading-none text-accent">{i + 1}</span>
+          <li key={title} className="flex gap-3 rounded-2xl border-2 border-ink bg-field p-4">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-on-accent">
+              {String(i + 1).padStart(2, "0")}
+            </span>
             <span>
               <span className="plaque-label block text-[11px] text-ink">{title}</span>
-              <span className="mt-1 block font-serif text-sm leading-snug text-dim">{body}</span>
+              <span className="mt-1.5 block text-xs leading-relaxed text-dim">{body}</span>
             </span>
           </li>
         ))}
@@ -312,7 +325,7 @@ export function ScenarioApp() {
       />
 
       {/* 4 · Status bar */}
-      <div className="mt-3">
+      <div className="mt-6">
         <SelectionBar
           selection={selection}
           beat={selectedBeat}
@@ -338,7 +351,7 @@ export function ScenarioApp() {
       </div>
 
       {/* 5 · Detail panel */}
-      <div className="mt-3">
+      <div className="mt-6">
         <DetailPanel
           selection={selection}
           open={panelOpen}

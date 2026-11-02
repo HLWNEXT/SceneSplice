@@ -120,7 +120,7 @@ export function MapPicker({ disabled, onCaptureReady }: Props) {
       </form>
 
       <div className="relative">
-        <canvas ref={canvasRef} className="aspect-video w-full rounded-none bg-[#d8cba3]" />
+        <canvas ref={canvasRef} className="aspect-video w-full rounded-none bg-line" />
         {!status && (
           <p className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center font-serif text-sm text-ink">
             Search an address to generate the white-box model.

@@ -33,9 +33,9 @@ type Props = {
 };
 
 const action =
-  "plaque-label inline-flex items-center gap-1.5 rounded-none border px-3 py-2 text-[11px] disabled:cursor-not-allowed disabled:opacity-45";
-const quiet = `${action} border-edge bg-field text-ink hover:bg-panel`;
-const strong = `${action} border-accent bg-accent text-on-accent`;
+  "plaque-label inline-flex items-center gap-1.5 rounded-full border-2 px-4 py-2 text-[11px] disabled:cursor-not-allowed disabled:opacity-45";
+const quiet = `${action} chrome border-ink text-ink`;
+const strong = `${action} border-ink bg-accent text-on-accent hover:brightness-125`;
 
 function Spin({ on, children }: { on: boolean; children: ReactNode }) {
   return on ? <LoaderCircle size={13} className="animate-spin" /> : <>{children}</>;
@@ -58,7 +58,7 @@ export function SelectionBar(p: Props) {
   }
 
   return (
-    <section aria-label="Selection" className="plate-marks border border-line bg-panel p-4">
+    <section aria-label="Selection" className="plate-marks rounded-2xl border-2 border-ink bg-panel p-4">
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         <div className="min-w-0 flex-1">
           <p className="plaque-label text-[11px] text-dim">{title ? `Selected · ${title}` : "Nothing selected"}</p>
@@ -107,15 +107,15 @@ export function SelectionBar(p: Props) {
       </div>
 
       {showBig && (
-        <div className="mt-4 border-t border-edge pt-4">
-          <button type="button" onClick={p.onMakeStory} disabled={busy || offline} className={`${strong} w-full justify-center py-4 text-sm`}>
+        <div className="mt-4 border-t-2 border-dashed border-line pt-4">
+          <button type="button" onClick={p.onMakeStory} disabled={busy || offline} className={`${strong} w-full justify-center py-4 text-sm tracking-[0.2em]`}>
             <Spin on={p.job?.kind === "story"}>
               <Wand2 size={17} />
             </Spin>
             {p.job?.kind === "story" ? "Writing your story…" : p.hasStory ? "Remake your story" : "Make your story"}
           </button>
           {p.hasStory && p.stale && !busy && (
-            <p className="mt-2 text-center font-serif text-xs italic text-dim">
+            <p className="mt-2 text-center text-xs text-dim">
               Your starting points changed. Remaking replaces the storyline and its images.
             </p>
           )}
@@ -123,15 +123,15 @@ export function SelectionBar(p: Props) {
       )}
 
       {!allReady && !p.hasStory && (
-        <p className="mt-3 font-serif text-xs italic text-dim">
+        <p className="mt-3 text-xs text-dim">
           {p.readyCount} of 4 starting points set. Fill in location, time, butterfly event and environment to make your story.
         </p>
       )}
-      {offline && <p className="mt-3 font-serif text-xs text-oxide">ComfyUI is offline — check the server in Settings (gear icon).</p>}
+      {offline && <p className="mt-3 text-xs text-oxide">ComfyUI is offline — check the server in Settings (gear icon).</p>}
 
       {(busy || p.progress) && (
         <div className="mt-3 flex items-center gap-3">
-          <div className="h-1.5 flex-1 bg-field">
+          <div className="h-2 flex-1 overflow-hidden rounded-full border border-ink bg-field">
             <div className="h-full bg-accent transition-[width]" style={{ width: `${busy ? (p.progress?.percent ?? 0) : 0}%` }} />
           </div>
           <span className="font-mono text-[11px] text-dim">{p.progress?.message}</span>

@@ -1,19 +1,12 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, EB_Garamond } from "next/font/google";
+import { Space_Mono } from "next/font/google";
 import "./globals.css";
 
-const display = Cormorant_Garamond({
+const spaceMono = Space_Mono({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["400", "700"],
   style: ["normal", "italic"],
-  variable: "--font-cormorant",
-});
-
-const serif = EB_Garamond({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  style: ["normal", "italic"],
-  variable: "--font-garamond",
+  variable: "--font-space-mono",
 });
 
 export const metadata: Metadata = {
@@ -23,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${display.variable} ${serif.variable}`} suppressHydrationWarning>
+    <html lang="en" className={spaceMono.variable} suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

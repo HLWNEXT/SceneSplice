@@ -166,7 +166,7 @@ export function StorylineCanvas({
 
   return (
     <section
-      className="flex h-[560px] flex-col overflow-hidden border border-stage-line bg-stage font-serif text-void"
+      className="scanlines flex h-[560px] flex-col overflow-hidden rounded-3xl border-2 border-ink bg-stage text-void"
       aria-label="Storyline canvas"
     >
       <div
@@ -174,7 +174,7 @@ export function StorylineCanvas({
         className="relative min-h-0 flex-1 touch-none select-none overflow-hidden bg-stage-well"
         style={{
           cursor: panRef.current ? "grabbing" : "grab",
-          backgroundImage: "radial-gradient(rgba(179,161,120,0.16) 1px, transparent 1px)",
+          backgroundImage: "radial-gradient(rgba(169,169,176,0.2) 1px, transparent 1px)",
           backgroundSize: `${24 * view.k}px ${24 * view.k}px`,
           backgroundPosition: `${view.x}px ${view.y}px`,
         }}
@@ -205,7 +205,7 @@ export function StorylineCanvas({
                     key={n.id}
                     d={`M${x1} ${y1} C${x1 + c} ${y1} ${x2 - c} ${y2} ${x2} ${y2}`}
                     fill="none"
-                    stroke={hot ? "#d98a5e" : "#4a3620"}
+                    stroke={hot ? "#5b83ff" : "#4a4a52"}
                     strokeWidth={hot ? 3 : 2}
                   />
                 );
@@ -220,14 +220,14 @@ export function StorylineCanvas({
                 key={n.id}
                 data-ui
                 onPointerDown={() => onSelect(n.id)}
-                className={`absolute flex cursor-default flex-col border bg-stage text-void shadow-[0_6px_18px_rgba(0,0,0,0.45)] ${
-                  sel ? "border-stage-oxide ring-1 ring-stage-oxide" : hotPath.has(n.id) ? "border-stage-oxide/60" : "border-stage-line"
+                className={`absolute flex cursor-default flex-col rounded-xl border bg-stage text-void shadow-[0_6px_18px_rgba(0,0,0,0.55)] ${
+                  sel ? "glow border-stage-oxide" : hotPath.has(n.id) ? "border-stage-oxide/60" : "border-stage-line"
                 }`}
                 style={{ left: yearToX(n.year) - NODE_W / 2, top: n.y, width: NODE_W, height: NODE_H, zIndex: draggingId === n.id ? 20 : sel ? 10 : 1 }}
               >
                 {/* Grip / header: drag left-right to change when this happens */}
                 <div
-                  className="flex cursor-grab items-center justify-between gap-2 border-b border-stage-line bg-stage-well px-2 py-1 active:cursor-grabbing"
+                  className="flex cursor-grab items-center justify-between gap-2 rounded-t-xl border-b border-stage-line bg-stage-well px-2.5 py-1 active:cursor-grabbing"
                   onPointerDown={(e) => onGripDown(e, n.id)}
                   onPointerMove={onGripMove}
                   onPointerUp={onGripUp}
@@ -241,7 +241,7 @@ export function StorylineCanvas({
                   <div className="flex shrink-0 items-center gap-1.5">
                     {n.keyframe && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={n.keyframe.image} alt="" className="h-4 w-7 border border-stage-line object-cover" title="Has a keyframe" />
+                      <img src={n.keyframe.image} alt="" className="h-4 w-7 rounded-sm border border-stage-line object-cover" title="Has a keyframe" />
                     )}
                     <button
                       type="button"
@@ -279,7 +279,7 @@ export function StorylineCanvas({
                   type="button"
                   aria-label="Add child beat"
                   onClick={() => onAddChild(n.id)}
-                  className="absolute -right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-stage-oxide bg-stage text-stage-oxide hover:bg-stage-oxide hover:text-stage"
+                  className="absolute -right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-stage-oxide bg-stage text-stage-oxide hover:bg-accent hover:text-on-accent"
                 >
                   <Plus size={14} />
                 </button>
@@ -298,7 +298,7 @@ export function StorylineCanvas({
               type="button"
               data-ui
               onClick={() => fit(tree)}
-              className="plaque-label absolute right-3 top-7 inline-flex items-center gap-1.5 border border-stage-line bg-stage px-2 py-1 text-[10px] text-stage-dim hover:text-void"
+              className="plaque-label absolute right-3 top-7 inline-flex items-center gap-1.5 rounded-full border border-stage-line bg-stage px-2.5 py-1 text-[10px] text-stage-dim hover:border-stage-oxide hover:text-void"
             >
               <Maximize size={11} /> Fit
             </button>
@@ -331,7 +331,7 @@ export function StorylineCanvas({
               <img
                 src={n.keyframe!.image}
                 alt={`Keyframe ${formatYear(n.year)}`}
-                className={`h-[60px] w-full border object-cover ${n.id === selectedId ? "border-stage-oxide" : "border-stage-line"}`}
+                className={`h-[60px] w-full rounded-md border object-cover ${n.id === selectedId ? "border-stage-oxide" : "border-stage-line"}`}
               />
               <span className="text-[10px] leading-4 text-stage-dim">{formatYear(n.year)}</span>
             </button>
@@ -359,7 +359,7 @@ export function StorylineCanvas({
         ))}
         {draggingId && tree[draggingId] && (
           <span
-            className="absolute bottom-0.5 -translate-x-1/2 bg-stage-oxide px-1.5 text-[10px] font-medium text-stage"
+            className="absolute bottom-0.5 -translate-x-1/2 rounded-full bg-accent px-2 text-[10px] font-bold text-on-accent"
             style={{ left: sx(tree[draggingId].year) }}
           >
             {formatYear(tree[draggingId].year)}

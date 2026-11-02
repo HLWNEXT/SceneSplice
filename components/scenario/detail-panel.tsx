@@ -33,21 +33,21 @@ export function DetailPanel(p: Props) {
   const showBeat = p.selection?.type === "beat" && !!p.beat;
 
   return (
-    <section aria-label="Editor" className="plate-marks border border-line bg-panel p-5">
+    <section aria-label="Editor" className="plate-marks rounded-2xl border-2 border-ink bg-panel p-5">
       <p className="plaque-label mb-4 text-[11px] text-dim">
         {kind ? `Editing · ${INPUT_LABELS[kind]}` : showBeat ? `Preview · ${formatOffset(offsetAt(p.frame, p.beat!.year))}` : "Editor"}
       </p>
 
       {/* Always mounted, only hidden: unmounting the picker reports its capture as lost, which would
           wipe the location and anything generated from it. */}
-      <div className={kind === "location" ? "bg-stage p-4" : "hidden"}>
+      <div className={kind === "location" ? "rounded-2xl bg-stage p-4" : "hidden"}>
         <StreetViewPicker disabled={p.disabled} onCaptureReady={p.onCaptureReady} onLocationChange={p.onLocationChange} />
       </div>
 
       {kind === "time" && (
         <div className="max-w-[640px]">
           <TimeSlider years={p.years ?? 0} disabled={p.disabled} onChange={p.onYears} />
-          <p className="mt-3 font-serif text-xs italic leading-relaxed text-dim">
+          <p className="mt-3 text-xs leading-relaxed text-dim">
             {p.years === null
               ? "Move the slider, or click TODAY, to set the time."
               : p.years < 0
@@ -68,14 +68,14 @@ export function DetailPanel(p: Props) {
       {kind === "environment" && (
         <div className="max-w-[640px]">
           <ClimateSelect value={p.climate} disabled={p.disabled} onChange={p.onClimate} />
-          <p className="mt-3 font-serif text-xs italic text-dim">Choose None if the weather shouldn&apos;t matter — that still counts as set.</p>
+          <p className="mt-3 text-xs text-dim">Choose None if the weather shouldn&apos;t matter — that still counts as set.</p>
         </div>
       )}
 
       {showBeat && !kind && (
         <div className="grid gap-4 md:grid-cols-2">
           <figure>
-            <div className="flex aspect-video items-center justify-center overflow-hidden border border-edge bg-stage-well">
+            <div className="flex aspect-video items-center justify-center overflow-hidden rounded-xl border-2 border-ink bg-stage-well">
               {p.beat!.keyframe ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={p.beat!.keyframe.image} alt="Keyframe" className="size-full object-contain" />
@@ -86,7 +86,7 @@ export function DetailPanel(p: Props) {
             <figcaption className="plaque-label mt-1.5 text-[11px] text-dim">Keyframe</figcaption>
           </figure>
           <figure>
-            <div className="flex aspect-video items-center justify-center overflow-hidden border border-edge bg-stage-well">
+            <div className="flex aspect-video items-center justify-center overflow-hidden rounded-xl border-2 border-ink bg-stage-well">
               {p.beat!.video ? (
                 <video src={viewUrl(p.beat!.video)} controls autoPlay loop className="size-full bg-black" />
               ) : (

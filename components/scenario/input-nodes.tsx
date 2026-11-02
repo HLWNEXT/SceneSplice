@@ -44,19 +44,21 @@ export function InputNodes({ summaries, selected, onSelect, docked }: Props) {
             data-ui
             aria-pressed={sel}
             onClick={() => onSelect(kind)}
-            className={`pointer-events-auto relative flex flex-col border bg-stage text-left shadow-[0_6px_18px_rgba(0,0,0,0.45)] transition-colors hover:border-stage-oxide ${
-              docked ? "gap-0.5 px-2.5 py-2" : "h-[148px] w-[190px] gap-2 p-3.5"
-            } ${sel ? "border-stage-oxide ring-1 ring-stage-oxide" : "border-stage-line"}`}
+            className={`pointer-events-auto relative flex flex-col border bg-stage text-left shadow-[0_6px_18px_rgba(0,0,0,0.55)] transition-colors hover:border-stage-oxide ${
+              docked ? "gap-1 rounded-xl px-2.5 py-2" : "h-[148px] w-[190px] gap-2 rounded-3xl p-4"
+            } ${sel ? "glow border-stage-oxide" : "border-stage-line"}`}
           >
-            <span className="flex items-center gap-2 text-stage-oxide">
-              <Icon size={docked ? 13 : 18} />
+            <span className="flex items-center gap-2 text-void">
+              <span className={`flex shrink-0 items-center justify-center rounded-full bg-accent text-on-accent ${docked ? "size-5" : "size-8"}`}>
+                <Icon size={docked ? 11 : 16} />
+              </span>
               <span className="plaque-label text-[10px]">{INPUT_LABELS[kind]}</span>
             </span>
-            <span className={`font-serif leading-snug ${value ? "text-void" : "italic text-stage-dim"} ${docked ? "line-clamp-2 text-[11px]" : "line-clamp-4 text-sm"}`}>
+            <span className={`font-serif leading-snug ${value ? "text-void" : "text-stage-dim"} ${docked ? "line-clamp-2 text-[11px]" : "line-clamp-4 text-sm"}`}>
               {value ?? PROMPTS[kind]}
             </span>
             {value && (
-              <Check size={docked ? 11 : 14} className="absolute right-2 top-2 text-sage" aria-label="Set" />
+              <Check strokeWidth={3} size={docked ? 11 : 14} className="absolute right-3 top-3 text-stage-oxide" aria-label="Set" />
             )}
           </button>
         );

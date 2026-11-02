@@ -16,7 +16,8 @@ export function AppShell() {
 
   return (
     <>
-      <nav className="mx-auto flex w-[min(1120px,calc(100%-32px))] gap-2 pt-6" aria-label="App mode">
+      <nav className="mx-auto flex w-[min(1120px,calc(100%-32px))] items-center gap-2 pt-6" aria-label="App mode">
+        <span aria-hidden className="mr-2 size-5 rounded-full border-2 border-ink bg-accent shadow-[inset_0_0_0_3px_var(--color-field)]" />
         {([
           ["decay", "Decay Studio"],
           ["whatifstreet", "WhatIfStreet"],
@@ -27,8 +28,8 @@ export function AppShell() {
             role="tab"
             aria-selected={mode === id}
             onClick={() => setMode(id)}
-            className={`plaque-label rounded-none border px-3.5 py-2 text-xs ${
-              mode === id ? "border-accent bg-accent text-on-accent" : "border-edge bg-field text-ink hover:bg-panel"
+            className={`plaque-label rounded-full border-2 border-ink px-4 py-1.5 text-[11px] ${
+              mode === id ? "bg-accent text-on-accent" : "chrome text-ink"
             }`}
           >
             {label}
@@ -39,9 +40,9 @@ export function AppShell() {
           onClick={() => setSettingsOpen(true)}
           aria-label="Settings"
           title="Settings — ComfyUI server and API keys"
-          className="ml-auto rounded-none border border-edge bg-field px-3 py-2 text-ink hover:bg-panel"
+          className="chrome ml-auto rounded-full border-2 border-ink p-2 text-ink"
         >
-          <Settings size={16} />
+          <Settings size={15} />
         </button>
       </nav>
       <div key={serverEpoch} className="contents">
