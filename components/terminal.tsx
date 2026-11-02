@@ -11,7 +11,7 @@ export function Terminal({ lines, percent, busy }: { lines: LogLine[]; percent: 
   }, [lines]);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-line bg-panel font-mono">
+    <div className="overflow-hidden rounded-none border border-line bg-panel font-mono">
       <div className="h-1 w-full bg-line">
         <div className="h-full bg-accent transition-all duration-500" style={{ width: `${percent}%` }} />
       </div>

@@ -26,17 +26,17 @@ export function createWhiteboxView(canvas: HTMLCanvasElement): WhiteboxView {
   renderer.setSize(CAPTURE_WIDTH, CAPTURE_HEIGHT, false);
 
   const scene = new THREE.Scene();
-  const sky = new THREE.Color(0xc9d3dc);
+  const sky = new THREE.Color(0xd8cba3);
   scene.background = sky;
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f96, 1.1));
-  const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+  scene.add(new THREE.HemisphereLight(0xf3e6c4, 0x6b5a3e, 1.1));
+  const sun = new THREE.DirectionalLight(0xffecc4, 2.2);
   sun.position.set(120, 200, 80);
   scene.add(sun);
 
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(4000, 4000).rotateX(-Math.PI / 2),
-    new THREE.MeshStandardMaterial({ color: 0xe6e6e6, roughness: 1 }),
+    new THREE.MeshStandardMaterial({ color: 0xc3ab7d, roughness: 1 }),
   );
   scene.add(ground);
 
@@ -48,8 +48,8 @@ export function createWhiteboxView(canvas: HTMLCanvasElement): WhiteboxView {
 
   const group = new THREE.Group();
   scene.add(group);
-  const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 });
-  const highlight = new THREE.MeshStandardMaterial({ color: 0xfff1b8, roughness: 0.95 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xe8ddc4, roughness: 0.95 });
+  const highlight = new THREE.MeshStandardMaterial({ color: 0x96661f, roughness: 0.95 });
 
   let frame = 0;
   const loop = () => {

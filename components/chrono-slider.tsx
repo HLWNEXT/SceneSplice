@@ -27,12 +27,12 @@ export function ChronoSlider({ years, disabled, onChange }: Props) {
     <div className="space-y-4">
       <div className="flex items-end justify-between">
         <div>
-          <div className="font-mono text-xs tracking-[0.08em] text-dim">ELAPSED</div>
-          <div className="text-3xl font-bold tabular-nums tracking-tight">
+          <div className="plaque-label text-xs text-dim">Elapsed</div>
+          <div className="font-display text-4xl font-semibold tabular-nums tracking-tight text-ink">
             {formatYears(years)} <span className="text-base font-normal text-dim">years</span>
           </div>
         </div>
-        <div className="max-w-[50%] text-right text-xs leading-snug text-dim">
+        <div className="max-w-[50%] text-right font-serif text-xs leading-snug text-dim">
           <span className="text-accent">{stage.label}</span> · {stage.summary}
         </div>
       </div>
@@ -71,7 +71,7 @@ export function ChronoSlider({ years, disabled, onChange }: Props) {
             disabled={disabled}
             onClick={() => onChange(s.years)}
             style={{ left: `${pct(yearsToLog(s.years))}%` }}
-            className={`absolute -translate-x-1/2 whitespace-nowrap hover:text-white ${
+            className={`absolute -translate-x-1/2 whitespace-nowrap hover:text-ink ${
               s.years === years ? "text-accent" : ""
             }`}
           >

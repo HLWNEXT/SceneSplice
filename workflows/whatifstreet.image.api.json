@@ -1,0 +1,202 @@
+{
+  "395": {
+    "inputs": {
+      "image": "streetview.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT: street view photo"
+    }
+  },
+  "1": {
+    "inputs": {
+      "prompt": "Reimagine this street scene.",
+      "model": "gemini-3-1-flash-lite",
+      "seed": 0,
+      "system_prompt": "- Role: AI Prompt Engineer for a 'time travel' street-reimagining pipeline that performs IMAGE-TO-IMAGE EDITING, never text-to-image generation.\n- Background: Given a real Google Street View photo and a user-chosen time offset, hypothetical global event (\"butterfly action\"), and optional weather condition, you write the single image-edit instruction that a FLUX Kontext model will use to transform the EXACT photo it is shown. The model will see the same photo you do, as a reference image it edits in place — it is not drawing a new picture from your words alone.\n- Hard rule: this is the SAME street, the SAME buildings, the SAME camera position, viewing angle, and framing as the source photo — only their surface condition, signage, vehicles, people, vegetation, added or removed fixtures, materials, and lighting may change. Never invent a different building footprint, skyline, road layout, or location. If a building would plausibly be demolished or replaced, describe what stands in that exact footprint and position instead, not a different composition.\n- Skills: Architectural, urban, and environmental visual reasoning; dense, concrete visual description anchored to what is actually visible in the photo; understanding how energy, climate, technology, and policy shifts physically change a street over time without erasing its underlying structure.\n- Goals: First silently identify the photo's exact composition, camera height/angle, and which structures occupy the frame. Then reason concretely about how the given time offset and hypothetical event would change THIS street's existing buildings, signage, vehicles, vegetation, materials, infrastructure, and people in place, and (if given) render the specified weather/light condition.\n- Constraints: Open the instruction by naming the specific preserved elements (e.g. the street's layout, the building massing, the camera framing) before describing what changes. Be specific and visual, not abstract. Do not mention AI, Gemini, FLUX, or the editing process. Output only the edit instruction, nothing else.\n- OutputFormat: One dense paragraph of visual detail, usable directly as a FLUX image-edit prompt, that reads as 'edit this photo so that...' rather than 'generate an image of...'.",
+      "images": [
+        "395",
+        0
+      ]
+    },
+    "class_type": "GeminiNode",
+    "_meta": {
+      "title": "Google Gemini (time-travel prompt writer)"
+    }
+  },
+  "407:38": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+      "type": "flux",
+      "device": "default"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "FLUX text encoders"
+    }
+  },
+  "407:39": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "FLUX VAE"
+    }
+  },
+  "407:37": {
+    "inputs": {
+      "unet_name": "flux1-dev-kontext_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "FLUX Kontext model"
+    }
+  },
+  "407:42": {
+    "inputs": {
+      "image": [
+        "395",
+        0
+      ]
+    },
+    "class_type": "FluxKontextImageScale",
+    "_meta": {
+      "title": "Scale to Kontext resolution"
+    }
+  },
+  "407:124": {
+    "inputs": {
+      "pixels": [
+        "407:42",
+        0
+      ],
+      "vae": [
+        "407:39",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "Encode street view photo"
+    }
+  },
+  "407:6": {
+    "inputs": {
+      "text": [
+        "1",
+        0
+      ],
+      "clip": [
+        "407:38",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "INPUT: FLUX positive prompt (from Gemini)"
+    }
+  },
+  "407:177": {
+    "inputs": {
+      "conditioning": [
+        "407:6",
+        0
+      ],
+      "latent": [
+        "407:124",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "Reference = street view photo"
+    }
+  },
+  "407:35": {
+    "inputs": {
+      "guidance": 2.2,
+      "conditioning": [
+        "407:177",
+        0
+      ]
+    },
+    "class_type": "FluxGuidance",
+    "_meta": {
+      "title": "Guidance"
+    }
+  },
+  "407:135": {
+    "inputs": {
+      "conditioning": [
+        "407:6",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "Empty negative"
+    }
+  },
+  "407:31": {
+    "inputs": {
+      "seed": 0,
+      "steps": 20,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "407:37",
+        0
+      ],
+      "positive": [
+        "407:35",
+        0
+      ],
+      "negative": [
+        "407:135",
+        0
+      ],
+      "latent_image": [
+        "407:124",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "INPUT: FLUX sampler (seed)"
+    }
+  },
+  "407:8": {
+    "inputs": {
+      "samples": [
+        "407:31",
+        0
+      ],
+      "vae": [
+        "407:39",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "Decode reimagined keyframe"
+    }
+  },
+  "500": {
+    "inputs": {
+      "filename_prefix": "whatifstreet/image",
+      "images": [
+        "407:8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "OUTPUT: reimagined street photo"
+    }
+  }
+}

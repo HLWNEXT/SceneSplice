@@ -5,6 +5,7 @@ node_modules
 dist
 /outputs/
 *.tsbuildinfo
+scripts/.test-*
 AGENTS.md
 CLAUDE.md
 higgsfield-apps-reference.png
