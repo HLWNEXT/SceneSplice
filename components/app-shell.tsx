@@ -4,10 +4,9 @@ import { Settings } from "lucide-react";
 import { useState } from "react";
 import { SettingsDialog } from "./settings-dialog";
 import { Studio } from "./studio";
-import { StorylineCanvas } from "./storyline/storyline-canvas";
-import { WhatIfStreetStudio } from "./whatifstreet/studio";
+import { ScenarioApp } from "./scenario/scenario-app";
 
-type Mode = "decay" | "whatifstreet" | "storyline";
+type Mode = "decay" | "whatifstreet";
 
 export function AppShell() {
   const [mode, setMode] = useState<Mode>("decay");
@@ -21,7 +20,6 @@ export function AppShell() {
         {([
           ["decay", "Decay Studio"],
           ["whatifstreet", "WhatIfStreet"],
-          ["storyline", "Storyline"],
         ] as const).map(([id, label]) => (
           <button
             key={id}
@@ -47,7 +45,7 @@ export function AppShell() {
         </button>
       </nav>
       <div key={serverEpoch} className="contents">
-        {mode === "decay" ? <Studio /> : mode === "whatifstreet" ? <WhatIfStreetStudio /> : <StorylineCanvas />}
+        {mode === "decay" ? <Studio /> : <ScenarioApp />}
       </div>
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} onSaved={() => setServerEpoch((n) => n + 1)} />}
     </>

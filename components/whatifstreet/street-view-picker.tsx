@@ -13,6 +13,8 @@ type Props = {
    *  Fires again (with a new function) on every orientation change, so the caller should treat each non-null
    *  call as "the shot changed" and invalidate anything generated from the previous one. */
   onCaptureReady: (capture: StreetViewCaptureFn | null) => void;
+  /** The address the user picked, so the caller can show it. Not called again on orientation changes. */
+  onLocationChange?: (label: string) => void;
 };
 
 const HEADING_STEP = 30;
@@ -27,7 +29,7 @@ async function getJson<T>(url: string): Promise<T> {
   return data as T;
 }
 
-export function StreetViewPicker({ disabled, onCaptureReady }: Props) {
+export function StreetViewPicker({ disabled, onCaptureReady, onLocationChange }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeoResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -62,6 +64,7 @@ export function StreetViewPicker({ disabled, onCaptureReady }: Props) {
     setHeading(0);
     setPitch(0);
     setLocation({ lat: r.lat, lon: r.lon, label: r.label });
+    onLocationChange?.(r.label);
   }
 
   // Fetch (or re-fetch on orientation change) whenever location/heading/pitch settle.

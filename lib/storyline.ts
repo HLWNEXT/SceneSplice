@@ -15,6 +15,8 @@ export type StoryNode = {
   year: number;
   y: number; // world-space vertical position (free; only X is bound to time)
   keyframe?: Keyframe;
+  /** LTX clip animated from this beat's keyframe. */
+  video?: ComfyFile;
 };
 
 export type StoryTree = Record<string, StoryNode>;

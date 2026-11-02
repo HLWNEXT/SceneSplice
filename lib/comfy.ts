@@ -3,7 +3,9 @@
 
 import decayTemplate from "../workflows/decay.api.json";
 import imageTemplate from "../workflows/whatifstreet.image.api.json";
+import storyTemplate from "../workflows/storyline.text.api.json";
 import videoTemplate from "../workflows/whatifstreet.video.api.json";
+import { NODE_STORY, STORY_NODE_PROGRESS, buildStoryWorkflow, type StoryWorkflowParams } from "./story-workflow";
 import { NODE, NODE_PROGRESS, buildWorkflow, type WorkflowParams } from "./workflow";
 import {
   IMAGE_NODE_PROGRESS,
@@ -140,15 +142,14 @@ function watchSocket(
   return close;
 }
 
-/** Polls GET /history/{id} until the run finishes; returns the output file from `outputNodeId`. */
-async function trackGraph(
+/** Polls GET /history/{id} until the run finishes; returns the `outputs` object of every output node. */
+async function trackOutputs(
   promptId: string,
   clientId: string,
   nodeProgress: NodeProgressMap,
-  outputNodeId: string,
   onProgress: (e: ProgressEvent) => void,
   signal?: AbortSignal,
-): Promise<OutputFile> {
+): Promise<Record<string, any>> {
   const closeSocket = watchSocket(promptId, clientId, nodeProgress, onProgress, signal);
   const started = Date.now();
   const MAX_CONSECUTIVE_POLL_FAILURES = 5;
@@ -180,15 +181,46 @@ async function trackGraph(
         throw new ComfyError(`Execution failed${err ? ` at ${err.node_type}: ${err.exception_message}` : ""}`);
       }
       if (!status?.completed) continue;
-      const out = entry.outputs?.[outputNodeId];
-      const file: OutputFile | undefined = [...(out?.images ?? []), ...(out?.videos ?? []), ...(out?.gifs ?? [])][0];
-      if (!file) throw new ComfyError("Run finished but produced no output file.");
       onProgress({ percent: 100, message: "Done." });
-      return file;
+      return entry.outputs ?? {};
     }
   } finally {
     closeSocket();
   }
+}
+
+/** Like trackOutputs, but returns the file saved by `outputNodeId`. */
+async function trackGraph(
+  promptId: string,
+  clientId: string,
+  nodeProgress: NodeProgressMap,
+  outputNodeId: string,
+  onProgress: (e: ProgressEvent) => void,
+  signal?: AbortSignal,
+): Promise<OutputFile> {
+  const outputs = await trackOutputs(promptId, clientId, nodeProgress, onProgress, signal);
+  const out = outputs[outputNodeId];
+  const file: OutputFile | undefined = [...(out?.images ?? []), ...(out?.videos ?? []), ...(out?.gifs ?? [])][0];
+  if (!file) throw new ComfyError("Run finished but produced no output file.");
+  return file;
+}
+
+/** POST /prompt with the storyline text workflow (Gemini, no image). */
+export async function queueStoryStage(params: StoryWorkflowParams, clientId: string): Promise<{ promptId: string }> {
+  return queueGraph(buildStoryWorkflow(storyTemplate as Workflow, params), clientId);
+}
+
+/** Resolves to the text produced by the storyline workflow's PreviewAny node. */
+export async function trackStoryStage(
+  promptId: string,
+  clientId: string,
+  onProgress: (e: ProgressEvent) => void,
+  signal?: AbortSignal,
+): Promise<string> {
+  const outputs = await trackOutputs(promptId, clientId, STORY_NODE_PROGRESS, onProgress, signal);
+  const text = outputs[NODE_STORY.output]?.text?.[0];
+  if (typeof text !== "string" || !text.trim()) throw new ComfyError("Run finished but produced no text.");
+  return text;
 }
 
 export async function trackProgress(

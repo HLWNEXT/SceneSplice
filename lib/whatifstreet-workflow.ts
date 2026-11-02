@@ -24,6 +24,8 @@ export type TimeTravelPromptParams = {
   timeHint: string;
   butterflyPrompt: string | null;
   climatePrompt: string | null;
+  /** A specific story beat to depict at this moment, on top of the general butterfly event. */
+  eventHint?: string | null;
 };
 
 /** Builds the per-run user message handed to the Gemini node's "prompt" input. */
@@ -32,6 +34,7 @@ export function buildGeminiPrompt(p: TimeTravelPromptParams): string {
     "You are looking at a real street photo. Edit THIS photo — do not design a different place.",
     `Show what this exact street, with its existing buildings and camera framing unchanged, would plausibly look like ${p.timeHint}.`,
     p.butterflyPrompt ? `Assume the following has occurred in the lead-up to this point: ${p.butterflyPrompt}.` : null,
+    p.eventHint ? `What this specific moment shows: ${p.eventHint}` : null,
     p.climatePrompt ? `Weather and light: ${p.climatePrompt}.` : null,
     "Start by naming what stays the same (the buildings' footprint and shape, the road and sidewalk layout, the camera angle), then describe in rich, concrete visual detail only what changes on top of that: materials, signage, vehicles, vegetation, people, added or removed fixtures.",
   ];

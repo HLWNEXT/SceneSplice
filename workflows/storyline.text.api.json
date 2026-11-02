@@ -1,0 +1,26 @@
+{
+  "1": {
+    "inputs": {
+      "prompt": "Write the storyline.",
+      "model": "gemini-3-1-flash-lite",
+      "seed": 0,
+      "system_prompt": "- Role: Story writer for a location-based scenario simulator that shows how a real street changes over time after a hypothetical world event (the \"butterfly event\").\n- Task: Given a street, a time frame, the event, and optional weather, write a short BRANCHING storyline: a causal chain of beats describing how THIS street physically changes, with one or two alternative branches.\n- Output: ONLY a single JSON object, no markdown, no code fences, no commentary. Shape: {\"text\": string, \"year\": number, \"children\": [ ...same shape... ]}. \"children\" is optional on the last beat of a branch.\n- Rules: The root beat has year 0. \"year\" is whole years since the story starts. A child's year is never less than its parent's. No beat exceeds the horizon given in the request; the last beats land at or near it. Write 7 to 11 beats in total: one main chain, plus one or two branches (alternative outcomes) that split from a middle beat. The first beat is the street as the event takes hold, still recognisable.\n- Style of each \"text\": one concrete sentence, at most 30 words, naming what is visibly different on the street (buildings, signage, vehicles, people, vegetation, infrastructure, materials) and why. Visual and physical, never abstract. The same buildings and street layout stay recognisable; change surfaces, uses and surroundings. Never state years or elapsed time in the text (no \"five years later\", \"by year 25\"): the year is stored separately.\n- Do not mention AI, the model, or the simulator."
+    },
+    "class_type": "GeminiNode",
+    "_meta": {
+      "title": "Google Gemini (storyline writer)"
+    }
+  },
+  "2": {
+    "inputs": {
+      "source": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "OUTPUT: storyline JSON"
+    }
+  }
+}

@@ -1,74 +1,62 @@
-# Storyline canvas
+# WhatIfStreet: location scenario simulator
 
-A branching, node-based storytelling tool for planning how a building changes over time. Each node is a story beat pinned to a year; branches are alternative futures. Beats get keyframe images from ComfyUI, and a root-to-leaf path is meant to become a video.
+WhatIfStreet and the Storyline canvas are one app (the **WhatIfStreet** tab in `components/app-shell.tsx`). The user picks a real street, a moment in the past or future, a "butterfly event" and the weather. The app writes a branching storyline of how that street changes, and each story beat can become an image (edited from the street's Street View photo) and then a video.
 
-Entry point: the **Storyline** tab in the app shell (`components/app-shell.tsx`).
+## Page layout (top to bottom)
+
+| # | Section | Component |
+| --- | --- | --- |
+| 1 | Project header + tagline, ComfyUI online dot | `components/scenario/scenario-app.tsx` |
+| 2 | Three-step instructions | `scenario-app.tsx` |
+| 3 | Storyline canvas. Starts with four input nodes (location, time, butterfly event, environment); after a story is made they dock into a rail on the left | `components/storyline/storyline-canvas.tsx`, `components/scenario/input-nodes.tsx` |
+| 4 | Status bar: what is selected and what can be done to it. When all four inputs are set it shows the big **Make your story** button | `components/scenario/selection-bar.tsx` |
+| 5 | Detail panel, switched by the selected node: Street View navigator, time slider, butterfly options, environment options. For a story beat it shows that beat's keyframe and video | `components/scenario/detail-panel.tsx` |
+
+Editors reused from the earlier WhatIfStreet: `components/whatifstreet/{street-view-picker,time-slider,butterfly-select,climate-select}.tsx`.
+
+## Flow
+
+1. Click each input node and set it. A node counts as set once the user has chosen something (for environment, "None" counts).
+2. **Make your story** → `workflows/storyline.text.api.json` (text-only Gemini → `PreviewAny`) returns JSON; `parseStory` validates and repairs it; `fromJson` lays it out on the canvas.
+3. Select a beat → **Generate keyframe** (`workflows/whatifstreet.image.api.json`) → **Make video** (`workflows/whatifstreet.video.api.json`).
+
+Changing a starting point after a story exists keeps the story on screen but flags it out of date; **Remake your story** replaces it.
+
+## Time model
+
+The canvas timeline is log-scaled and only runs forward from Year 0 (see `lib/storyline.ts`), while the time slider is ±200 years. `storyFrame` in `lib/scenario.ts` reconciles them:
+
+| Slider | Year 0 is | Story runs |
+| --- | --- | --- |
+| N years ahead | today | to N years ahead |
+| N years ago | N years ago | forward to today (an alternate history) |
+| Today | today | 10 years ahead |
+
+Beat headers show the offset from today (`50 YR AGO`); the axis shows years since the start, with a caption saying what Year 0 means.
+
+## Data model
+
+A tree of beats (`StoryNode`: `parentId`, `text`, `year`, `y`, optional `keyframe` and `video`). X position is a pure function of `year`, so dragging a beat horizontally edits time; a beat is clamped between its parent and earliest child. See `lib/storyline.ts`. No graph library is used.
+
+## Keyframes
+
+Keyframes chain: a beat edits its nearest ancestor's keyframe; the first one edits the captured Street View photo (uploaded once per shot). The prompt is `buildGeminiPrompt` with the beat's text as `eventHint` and the offset from today as the time hint. Regenerating a keyframe clears that beat's video. Regenerating a parent does **not** invalidate children made from the old one.
 
 ## Files
 
 | File | Role |
 | --- | --- |
-| `lib/storyline.ts` | Pure model: tree, time scale, layout, path tracing, prompt building, mock data. No React, no JSON imports, so it runs under `node --test`. |
-| `components/storyline/storyline-canvas.tsx` | Client component: canvas, nodes, timeline axis, keyframe strip, toolbar, mock backends. |
-| `test/storyline.test.ts` | Unit tests for the model (10 tests). |
-| `lib/comfy.ts` (existing) | ComfyUI client reused for image upload, queueing and progress tracking. |
-
-## Design decisions
-
-### No graph library
-The key constraint is that a node's X position is a function of its year. Graph libraries (React Flow etc.) own node positions, so this would mean fighting them. The canvas is plain React with pointer events and a CSS transform. No dependencies were added.
-
-### Time is a log scale
-`x = log10(1 + year) * 520px`. Each decade gets equal width, so Year 0, 10, 100 and 10,000 fit on one axis. The inverse (`xToYear`) turns a drag into a year, which is rounded to two significant figures so values read as `340`, not `338.17`.
-
-- Dragging a node by its header changes its year; vertical position is free.
-- A beat is clamped between its parent's year and its earliest child's year, so causality can't be reversed.
-- Axis ticks: Year 0, 1, 10, 100, 1,000, 10,000, 100,000, plus minor ticks at 2-9 of each decade. Ticks, decade guide lines, node dots and the keyframe strip all use the same screen-space mapping as the canvas, so they stay aligned while panning and zooming.
-
-### Data model: a tree with parent links
-```ts
-type StoryNode = { id; parentId: string | null; text; year; y; keyframe? }
-type StoryTree = Record<string, StoryNode>
-type StoryJson = { text; year; children?: StoryJson[] }   // nested import/export form
-```
-- A flat map with `parentId` makes edits, deletes and path tracing cheap. `fromJson` / `toJson` convert to and from the nested form, which is what an LLM returns and what the toolbar's **JSON** button copies.
-- `fromJson` lays nodes out automatically: leaves take consecutive rows and parents are centered on their children.
-- Deleting a node removes its whole subtree, so there are no orphans.
-- It is a tree, not a general DAG. Each beat has one parent.
-
-### Interaction
-- Pan: drag the background. Zoom: mouse wheel, anchored on the cursor (0.2x-2x). **Fit** frames the whole tree.
-- Node: click the text to edit; `+` on the right edge adds a child (one tick later, placed in the first free row so it doesn't overlap); the trash icon deletes the subtree; **Generate Keyframe** renders that beat.
-- Selecting a node highlights its path back to the root.
-
-### Keyframes (ComfyUI)
-Keyframes use the existing WhatIfStreet image-stage workflow (`workflows/whatifstreet.image.api.json`: Gemini writes an edit description, FLUX applies it to an input image).
-
-- Keyframes **chain**. The root beat edits the user's uploaded **Base photo**. Every other beat edits its nearest ancestor's keyframe (`keyframeSource`), falling back to the base photo. Generate from the root downward so each beat builds on the previous.
-- The prompt (`buildPrompt`) tells the model to edit the photo keeping the building and camera framing, then states the year, the event, and the preceding history along the path.
-- The result is stored as `keyframe: { prompt, image, file, generatedAt }`. `file` is the ComfyUI output reference used as the next beat's input.
-- Thumbnails appear in the strip above the timeline at the beat's year.
-- **Mock ComfyUI** (toolbar checkbox) swaps in generated SVG placeholders whose decay grows with year, for offline work.
-
-### Storyline generation (mocked)
-**Generate Storyline** calls `mockLlmStoryline`, which waits and returns a predefined `StoryJson`, then replaces the tree and re-fits the view.
-
-### Video path (mocked)
-**Render Video Path** requires a selected leaf node. It traces leaf to root (`planVideo`), refuses if any beat on the path has no keyframe, and pairs consecutive keyframes into segments (clip length grows with the log time jump). `mockLtxRender` then simulates progress and returns a fake output path.
-
-## Backends and how to make them real
-
-All external calls are isolated at the top of `storyline-canvas.tsx`:
-
-| Function | Status | To make real |
-| --- | --- | --- |
-| Keyframe generation (inside `generateKeyframe`) | **Real** (ComfyUI) | Needs `COMFY_URL` in `.env.local` and a working Gemini node on the ComfyUI server. |
-| `mockLlmStoryline` | Mock | Replace with an LLM call returning `StoryJson` (validate shape before `fromJson`). |
-| `mockLtxRender` | Mock | Queue `workflows/whatifstreet.video.api.json` per segment via `queueVideoStage` / `trackVideoStage`, then stitch the clips. |
+| `lib/scenario.ts` | Input kinds, `storyFrame`, `storyPrompt`, `parseStory` (pure, tested) |
+| `lib/story-workflow.ts` | Node IDs + injector for the story workflow |
+| `lib/storyline.ts` | Tree model, layout, time scale (pure, tested) |
+| `lib/comfy.ts` | `queueStoryStage` / `trackStoryStage` plus the existing image and video stages |
+| `workflows/storyline.text.api.json` | Story-writing Gemini prompt (asks for strict JSON, 7-11 beats, 1-2 branches) |
+| `test/scenario.test.ts`, `test/storyline.test.ts` | Unit tests |
 
 ## Known limitations
 
-- The video workflow takes a single image, so real video needs either one clip per keyframe or a new first/last-frame workflow. `planVideo` already produces first/last pairs for the latter.
-- Regenerating a parent keyframe does not invalidate children generated from the old one.
-- The canvas has not had a browser test pass beyond manual use; the model logic is covered by unit tests, the UI is not.
-- The Gemini prompt wording is tuned for edits of a single photo and has not been tuned for storyline beats.
+- The UI has not been click-tested in a browser; the logic and ComfyUI stages are tested or were run live, the React components are only type-checked and built.
+- One ComfyUI job at a time.
+- The old "Render Video Path" (stitching a root-to-leaf path) was a mock and is gone. Video is now one real clip per beat. `planVideo` in `lib/storyline.ts` is kept for a future first/last-frame workflow but is unused.
+- Story JSON from the model is repaired where safe (years out of order or past the horizon) and rejected otherwise (not JSON, a beat with no text, more than 16 beats).
+- The story needs Gemini on the ComfyUI server; on Comfy Cloud it needs a paid plan (see the server settings dialog).
