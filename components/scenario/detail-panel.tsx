@@ -96,13 +96,19 @@ export function DetailPanel(p: Props) {
               )}
             </div>
             <figcaption className="plaque-label mt-1.5 flex items-center justify-between text-[11px] text-dim">
-              <span>Video</span>
+              <span>{p.beat!.videoMeta?.mode === "flf2v" ? "Video · previous → this keyframe" : "Video"}</span>
               {p.beat!.video && (
                 <a href={viewUrl(p.beat!.video)} download="whatifstreet.mp4" className="text-accent hover:underline">
                   Download MP4
                 </a>
               )}
             </figcaption>
+            {p.beat!.videoMeta && (
+              <details className="mt-2 text-xs text-dim">
+                <summary className="plaque-label cursor-pointer text-[11px]">Video prompt</summary>
+                <p className="mt-1.5 leading-relaxed">{p.beat!.videoMeta.prompt}</p>
+              </details>
+            )}
           </figure>
         </div>
       )}

@@ -17,6 +17,8 @@ export type StoryNode = {
   keyframe?: Keyframe;
   /** LTX clip animated from this beat's keyframe. */
   video?: ComfyFile;
+  /** How the clip was made: the prompt LTX animated from, and whether it ran first-frame to last-frame. */
+  videoMeta?: { prompt: string; mode: "flf2v" | "single" };
 };
 
 export type StoryTree = Record<string, StoryNode>;
@@ -198,8 +200,14 @@ export function placeholderImage(seedText: string, year: number): string {
 // The image a node's keyframe should be edited from: the nearest ancestor's generated keyframe,
 // or null when none exists yet (the caller then falls back to the user's base photo).
 export function keyframeSource(tree: StoryTree, id: string): ComfyFile | null {
+  return previousKeyframeNode(tree, id)?.keyframe?.file ?? null;
+}
+
+// The nearest ancestor that has a real (ComfyUI-rendered) keyframe: the "previous keyframe" a video
+// starts from, and the source image a keyframe is edited from.
+export function previousKeyframeNode(tree: StoryTree, id: string): StoryNode | null {
   const ancestors = pathToRoot(tree, id).slice(0, -1).reverse();
-  return ancestors.find((n) => n.keyframe?.file)?.keyframe?.file ?? null;
+  return ancestors.find((n) => n.keyframe?.file) ?? null;
 }
 
 export type RenderPlan = {

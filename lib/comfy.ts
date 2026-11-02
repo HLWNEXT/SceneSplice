@@ -3,17 +3,29 @@
 
 import decayTemplate from "../workflows/decay.api.json";
 import imageTemplate from "../workflows/whatifstreet.image.api.json";
+import flf2vTemplate from "../workflows/ltx-2-5-flf2v.json";
 import storyTemplate from "../workflows/storyline.text.api.json";
+import videoPromptTemplate from "../workflows/videoprompt.text.api.json";
 import videoTemplate from "../workflows/whatifstreet.video.api.json";
 import { NODE_STORY, STORY_NODE_PROGRESS, buildStoryWorkflow, type StoryWorkflowParams } from "./story-workflow";
+import {
+  NODE_VPROMPT,
+  VPROMPT_NODE_PROGRESS,
+  buildVideoPromptWorkflow,
+  type VideoPromptWorkflowParams,
+} from "./video-prompt";
 import { NODE, NODE_PROGRESS, buildWorkflow, type WorkflowParams } from "./workflow";
 import {
   IMAGE_NODE_PROGRESS,
   NODE_IMAGE,
   NODE_VIDEO,
   VIDEO_NODE_PROGRESS,
+  FLF2V_NODE_PROGRESS,
+  NODE_FLF2V,
+  buildFlf2vWorkflow,
   buildImageWorkflow,
   buildVideoWorkflow,
+  type Flf2vWorkflowParams,
   type ImageWorkflowParams,
   type VideoWorkflowParams,
 } from "./whatifstreet-workflow";
@@ -248,6 +260,38 @@ export async function trackVideoStage(
   signal?: AbortSignal,
 ): Promise<OutputFile> {
   return trackGraph(promptId, clientId, VIDEO_NODE_PROGRESS, NODE_VIDEO.outputVideo, onProgress, signal);
+}
+
+/** POST /prompt with the first-frame / last-frame video workflow. */
+export async function queueFlf2vStage(params: Flf2vWorkflowParams, clientId: string): Promise<{ promptId: string }> {
+  return queueGraph(buildFlf2vWorkflow(flf2vTemplate as unknown as Workflow, params), clientId);
+}
+
+export async function trackFlf2vStage(
+  promptId: string,
+  clientId: string,
+  onProgress: (e: ProgressEvent) => void,
+  signal?: AbortSignal,
+): Promise<OutputFile> {
+  return trackGraph(promptId, clientId, FLF2V_NODE_PROGRESS, NODE_FLF2V.outputVideo, onProgress, signal);
+}
+
+/** POST /prompt with the video-prompt workflow (Gemini looking at the keyframe(s)). */
+export async function queueVideoPromptStage(params: VideoPromptWorkflowParams, clientId: string): Promise<{ promptId: string }> {
+  return queueGraph(buildVideoPromptWorkflow(videoPromptTemplate as Workflow, params), clientId);
+}
+
+/** Resolves to the video prompt Gemini wrote. */
+export async function trackVideoPromptStage(
+  promptId: string,
+  clientId: string,
+  onProgress: (e: ProgressEvent) => void,
+  signal?: AbortSignal,
+): Promise<string> {
+  const outputs = await trackOutputs(promptId, clientId, VPROMPT_NODE_PROGRESS, onProgress, signal);
+  const text = outputs[NODE_VPROMPT.output]?.text?.[0];
+  if (typeof text !== "string" || !text.trim()) throw new ComfyError("Run finished but produced no text.");
+  return text;
 }
 
 /**

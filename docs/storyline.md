@@ -18,7 +18,7 @@ Editors reused from the earlier WhatIfStreet: `components/whatifstreet/{street-v
 
 1. Click each input node and set it. A node counts as set once the user has chosen something (for environment, "None" counts).
 2. **Make your story** → `workflows/storyline.text.api.json` (text-only Gemini → `PreviewAny`) returns JSON; `parseStory` validates and repairs it; `fromJson` lays it out on the canvas.
-3. Select a beat → **Generate keyframe** (`workflows/whatifstreet.image.api.json`) → **Make video** (`workflows/whatifstreet.video.api.json`).
+3. Select a beat → **Generate keyframe** (`workflows/whatifstreet.image.api.json`) → **Make video** (see Video below).
 
 Changing a starting point after a story exists keeps the story on screen but flags it out of date; **Remake your story** replaces it.
 
@@ -42,6 +42,17 @@ A tree of beats (`StoryNode`: `parentId`, `text`, `year`, `y`, optional `keyfram
 
 Keyframes chain: a beat edits its nearest ancestor's keyframe; the first one edits the captured Street View photo (uploaded once per shot). The prompt is `buildGeminiPrompt` with the beat's text as `eventHint` and the offset from today as the time hint. Regenerating a keyframe clears that beat's video. Regenerating a parent does **not** invalidate children made from the old one.
 
+## Video
+
+**Make video** always runs two ComfyUI jobs:
+
+1. **Prompt layer** (`workflows/videoprompt.text.api.json`): Gemini looks at the keyframe(s) and the story text and writes the prompt, adding a little motion and one small event, plus ambient sound (LTX 2.5 generates audio). `buildVideoPromptWorkflow` hands it two images (first, then last, via `ImageBatch`) or one. If this step fails the video still runs, with `fallbackVideoPrompt` (the beat text plus gentle ambient motion), and the status bar says so.
+2. **Video**:
+   - If the beat has an earlier keyframe on its path (`previousKeyframeNode`), it runs `workflows/ltx-2-5-flf2v.json` (LTX 2.5 first-frame / last-frame): first frame = the previous keyframe, last frame = the selected keyframe.
+   - Otherwise (typically the first beat) it runs the single-image LTX workflow `workflows/whatifstreet.video.api.json`.
+
+The flf2v file is used exactly as exported from ComfyUI; `buildFlf2vWorkflow` only sets the two frames, the prompt and the seed (node ids in `NODE_FLF2V`). It also switches the template's built-in LTX prompt enhancer **off**, because Gemini has already written the prompt from both frames and a second rewrite only blurs it. Clip length is `VIDEO_SECONDS` (3 s, set in `lib/whatifstreet-workflow.ts` and applied to both video paths, since generation time grows steeply with length); 1280x720 and 24 fps come from the templates. The chosen prompt and mode are kept on the node (`videoMeta`) and shown under the video.
+
 ## Files
 
 | File | Role |
@@ -50,6 +61,9 @@ Keyframes chain: a beat edits its nearest ancestor's keyframe; the first one edi
 | `lib/story-workflow.ts` | Node IDs + injector for the story workflow |
 | `lib/storyline.ts` | Tree model, layout, time scale (pure, tested) |
 | `lib/comfy.ts` | `queueStoryStage` / `trackStoryStage` plus the existing image and video stages |
+| `lib/video-prompt.ts` | Video prompt layer: request text, workflow injector, reply cleanup, fallback (pure, tested) |
+| `workflows/videoprompt.text.api.json` | Gemini video-prompt writer (sees the keyframe(s)) |
+| `workflows/ltx-2-5-flf2v.json` | LTX 2.5 first/last-frame video (API format, used as exported) |
 | `workflows/storyline.text.api.json` | Story-writing Gemini prompt (asks for strict JSON, 7-11 beats, 1-2 branches) |
 | `test/scenario.test.ts`, `test/storyline.test.ts` | Unit tests |
 
@@ -57,6 +71,7 @@ Keyframes chain: a beat edits its nearest ancestor's keyframe; the first one edi
 
 - The UI has not been click-tested in a browser; the logic and ComfyUI stages are tested or were run live, the React components are only type-checked and built.
 - One ComfyUI job at a time.
+- A video's first frame is the nearest earlier keyframe on the path, not necessarily the beat directly before it. Regenerating that earlier keyframe does not invalidate videos already made from it.
 - The old "Render Video Path" (stitching a root-to-leaf path) was a mock and is gone. Video is now one real clip per beat. `planVideo` in `lib/storyline.ts` is kept for a future first/last-frame workflow but is unused.
 - Story JSON from the model is repaired where safe (years out of order or past the horizon) and rejected otherwise (not JSON, a beat with no text, more than 16 beats).
 - The story needs Gemini on the ComfyUI server; on Comfy Cloud it needs a paid plan (see the server settings dialog).

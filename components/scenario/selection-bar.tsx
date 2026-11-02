@@ -27,6 +27,8 @@ type Props = {
   onAbort: () => void;
   onEditText: () => void;
   onGenerateKeyframe: () => void;
+  /** Whether the selected beat has an earlier keyframe, so its video runs from that one to this one. */
+  videoFromPrevious: boolean;
   onMakeVideo: () => void;
   onAddChild: () => void;
   onDelete: () => void;
@@ -88,7 +90,13 @@ export function SelectionBar(p: Props) {
               type="button"
               onClick={p.onMakeVideo}
               disabled={busy || offline || !p.beat.keyframe}
-              title={p.beat.keyframe ? "Animate this keyframe" : "Generate a keyframe first"}
+              title={
+                p.beat.keyframe
+                  ? p.videoFromPrevious
+                    ? "Animate from the previous keyframe to this one"
+                    : "Animate this keyframe"
+                  : "Generate a keyframe first"
+              }
               className={quiet}
             >
               <Spin on={p.job?.kind === "video" && p.job.id === p.beat.id}>

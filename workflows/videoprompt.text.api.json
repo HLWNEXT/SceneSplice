@@ -1,0 +1,64 @@
+{
+  "10": {
+    "inputs": {
+      "image": "keyframe.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT: selected (last) keyframe"
+    }
+  },
+  "11": {
+    "inputs": {
+      "image": "previous.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT: previous (first) keyframe — removed when there is none"
+    }
+  },
+  "12": {
+    "inputs": {
+      "image1": [
+        "11",
+        0
+      ],
+      "image2": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "ImageBatch",
+    "_meta": {
+      "title": "First frame, then last frame"
+    }
+  },
+  "1": {
+    "inputs": {
+      "prompt": "Write the video prompt.",
+      "model": "gemini-3-1-flash-lite",
+      "seed": 0,
+      "system_prompt": "- Role: Video prompt writer for LTX 2.5, a video model that also generates synchronized sound.\n- Input: one or two street frames (when two: the FIRST frame, then the LAST frame, in that order) plus a short note about the story moment each one shows.\n- Task: write ONE prompt for a clip of about three seconds. Add a little motion and ONE small, plausible event that fits the story moment, so the scene feels alive without changing what it is.\n- Rules: Same street, same buildings, same camera position as the frames; no scene cuts and no new locations. With two frames, the clip travels smoothly from the first frame to the last: describe what changes along the way (growth, construction, weather, light, people or vehicles arriving) so it ends on the last frame. With one frame, the clip starts on it and evolves gently. Describe motion concretely: the camera (default to a slow steady push-in, or a locked-off shot), subject motion, ambient motion (people, vehicles, foliage, light, weather, reflections), and exactly one short event (for example a delivery drone settling onto a roof, a tram gliding past, a shutter rolling up). Finish with one sentence of ambient sound. Present tense, a single paragraph, 80 to 130 words.\n- Do not mention frames, images, AI, models or these instructions. No quotation marks, no markdown, no lists. Output only the prompt.",
+      "images": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "GeminiNode",
+    "_meta": {
+      "title": "Google Gemini (video prompt writer)"
+    }
+  },
+  "2": {
+    "inputs": {
+      "source": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "OUTPUT: video prompt"
+    }
+  }
+}

@@ -8,11 +8,15 @@ import {
   cancelPrompt,
   checkServer,
   outputFileName,
+  queueFlf2vStage,
   queueImageStage,
   queueStoryStage,
+  queueVideoPromptStage,
   queueVideoStage,
+  trackFlf2vStage,
   trackImageStage,
   trackStoryStage,
+  trackVideoPromptStage,
   trackVideoStage,
   uploadImage,
   viewUrl,
@@ -28,8 +32,9 @@ import {
   storyPrompt,
   type InputKind,
 } from "../../lib/scenario";
-import { addChild, deleteSubtree, fromJson, keyframeSource, type StoryTree } from "../../lib/storyline";
+import { addChild, deleteSubtree, fromJson, keyframeSource, previousKeyframeNode, type StoryTree } from "../../lib/storyline";
 import { formatOffset, timeHint } from "../../lib/timetravel";
+import { cleanVideoPrompt, fallbackVideoPrompt, videoPromptRequest, type VideoPromptRequest } from "../../lib/video-prompt";
 import { buildGeminiPrompt } from "../../lib/whatifstreet-workflow";
 import { StorylineCanvas } from "../storyline/storyline-canvas";
 import type { StreetViewCaptureFn } from "../whatifstreet/street-view-picker";
@@ -214,24 +219,64 @@ export function ScenarioApp() {
       const file = await trackImageStage(promptId, clientId, onProgress, ctrl.signal);
       return { prompt, file };
     });
-    if (done) patch(id, { keyframe: { prompt: done.prompt, image: viewUrl(done.file), file: done.file, generatedAt: Date.now() }, video: undefined });
+    if (done) patch(id, { keyframe: { prompt: done.prompt, image: viewUrl(done.file), file: done.file, generatedAt: Date.now() }, video: undefined, videoMeta: undefined });
   }
 
+  // A video runs first-frame -> last-frame (flf2v) when an earlier keyframe exists on the beat's path, otherwise
+  // from the single keyframe. Either way an LLM first writes the prompt, adding a little motion and one event.
   async function makeVideo(id: string) {
-    const file = tree[id]?.keyframe?.file;
-    if (!file) return;
-    const { climatePrompt } = prompts();
-    const video = await runJob("video", id, async (ctrl, onProgress) => {
-      const motionPrompt = climatePrompt ?? "natural ambient motion, pedestrians and traffic moving naturally";
+    const node = tree[id];
+    const file = node?.keyframe?.file;
+    if (!node || !file) return;
+    const prev = previousKeyframeNode(tree, id);
+    const prevFile = prev?.keyframe?.file ?? null;
+    const request: VideoPromptRequest = {
+      mode: prevFile ? "flf2v" : "single",
+      beat: node.text,
+      previousBeat: prev?.text ?? null,
+      fromOffset: prev ? offsetAt(frame, prev.year) : null,
+      toOffset: offsetAt(frame, node.year),
+      climatePrompt: prompts().climatePrompt,
+    };
+    // The prompt step takes the first tenth of the progress bar, the video the rest.
+    const slice = (from: number, to: number, onProgress: (e: ProgressEvent) => void) => (e: ProgressEvent) =>
+      onProgress({ percent: from + (e.percent / 100) * (to - from), message: e.message });
+
+    const made = await runJob("video", id, async (ctrl, onProgress) => {
+      let prompt: string;
+      let refineError: string | null = null;
+      try {
+        const clientId = crypto.randomUUID();
+        const { promptId } = await queueVideoPromptStage(
+          {
+            lastImage: outputFileName(file),
+            firstImage: prevFile ? outputFileName(prevFile) : null,
+            prompt: videoPromptRequest(request),
+            seed: Math.floor(Math.random() * 2 ** 31),
+          },
+          clientId,
+        );
+        promptIdRef.current = promptId;
+        prompt = cleanVideoPrompt(await trackVideoPromptStage(promptId, clientId, slice(0, 10, onProgress), ctrl.signal));
+      } catch (err) {
+        if (isAbort(err)) throw err;
+        refineError = errorText(err);
+        prompt = fallbackVideoPrompt(request);
+      }
+
       const clientId = crypto.randomUUID();
-      const { promptId } = await queueVideoStage(
-        { imageName: outputFileName(file), motionPrompt, seed: Math.floor(Math.random() * 2 ** 32) },
-        clientId,
-      );
-      promptIdRef.current = promptId;
-      return trackVideoStage(promptId, clientId, onProgress, ctrl.signal);
+      const seed = Math.floor(Math.random() * 2 ** 32);
+      const queued = prevFile
+        ? await queueFlf2vStage({ firstImage: outputFileName(prevFile), lastImage: outputFileName(file), prompt, seed }, clientId)
+        : await queueVideoStage({ imageName: outputFileName(file), motionPrompt: prompt, seed }, clientId);
+      promptIdRef.current = queued.promptId;
+      const track = prevFile ? trackFlf2vStage : trackVideoStage;
+      const video = await track(queued.promptId, clientId, slice(10, 100, onProgress), ctrl.signal);
+      return { video, prompt, refineError };
     });
-    if (video) patch(id, { video });
+    if (!made) return;
+    patch(id, { video: made.video, videoMeta: { prompt: made.prompt, mode: request.mode } });
+    if (made.refineError) setError(`Video made with a basic prompt — the prompt-writing step failed: ${made.refineError}`);
   }
 
   function spawnChild(id: string) {
@@ -344,6 +389,7 @@ export function ScenarioApp() {
           onAbort={abort}
           onEditText={() => selection?.type === "beat" && setEditingId(selection.id)}
           onGenerateKeyframe={() => selection?.type === "beat" && generateKeyframe(selection.id)}
+          videoFromPrevious={!!selectedBeat && !!previousKeyframeNode(tree, selectedBeat.id)}
           onMakeVideo={() => selection?.type === "beat" && makeVideo(selection.id)}
           onAddChild={() => selection?.type === "beat" && spawnChild(selection.id)}
           onDelete={() => selection?.type === "beat" && removeBeat(selection.id)}
