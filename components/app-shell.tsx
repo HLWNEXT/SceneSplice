@@ -16,9 +16,16 @@ export function AppShell() {
 
   return (
     <>
-      <nav className="mx-auto flex w-[min(1120px,calc(100%-32px))] items-center gap-2 pt-6" aria-label="App mode">
-        <span aria-hidden className="mr-2 size-5 rounded-full border-2 border-ink bg-accent shadow-[inset_0_0_0_3px_var(--color-field)]" />
-        <span className="plaque-label mr-3 text-sm font-bold text-ink">SceneSplice</span>
+      <header className="mx-auto w-[min(1120px,calc(100%-32px))] pt-10">
+        <h1 className="text-[clamp(44px,8vw,96px)] font-bold uppercase leading-[0.92] tracking-[-0.04em] text-ink">
+          Scene<span className="text-accent">Splice</span>
+        </h1>
+        <div className="my-5 h-[3px] w-24 rounded-full bg-accent" />
+        <p className="max-w-[620px] text-sm leading-relaxed text-dim">
+          Splice scenes through time: simulate how a space decays, or re-imagine a real street under a world-changing event.
+        </p>
+      </header>
+      <nav className="mx-auto flex w-[min(1120px,calc(100%-32px))] items-center gap-2 pt-6" aria-label="Tools">
         {([
           ["decay", "Decay Studio"],
           ["whatifstreet", "WhatIfStreet"],

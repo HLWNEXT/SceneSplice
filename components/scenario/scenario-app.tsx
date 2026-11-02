@@ -310,32 +310,17 @@ export function ScenarioApp() {
   return (
     <main className="mx-auto w-[min(1120px,calc(100%-32px))] pb-16 pt-8">
       {/* 1 · Project header */}
-      <header className="relative my-8 overflow-hidden rounded-3xl border-2 border-ink bg-field px-6 pb-8 pt-5 sm:px-10">
+      <header className="relative mb-6 mt-2 overflow-hidden rounded-2xl border-2 border-ink bg-field px-5 py-4">
         <div className="flex items-center justify-between gap-4">
-          <p className="plaque-label text-[11px] text-dim">SYS/01 · Location Scenario Simulator</p>
+          <h2 className="plaque-label text-[11px] text-ink">WhatIfStreet · Location Scenario Simulator</h2>
           <p className="plaque-label flex items-center gap-2 text-[11px] text-dim">
             <span className={`inline-block size-2.5 rounded-full border border-ink ${online ? "bg-accent" : online === false ? "bg-oxide" : "bg-line"}`} />
             {online ? "ComfyUI online" : online === false ? "ComfyUI offline" : "Checking…"}
           </p>
         </div>
-        <div className="relative mt-6 flex flex-wrap items-end justify-between gap-6">
-          <div className="max-w-[640px]">
-            <h1 className="text-[clamp(38px,7vw,84px)] font-bold uppercase leading-[0.92] tracking-[-0.04em] text-ink">
-              What<span className="text-accent">If</span>
-              <br />
-              Street
-            </h1>
-            <div className="my-5 h-[3px] w-24 rounded-full bg-accent" />
-            <p className="text-sm leading-relaxed text-dim">
-              Pick a real street, a moment in the past or future, and one world-changing event. Watch how the street unfolds.
-            </p>
-          </div>
-          <div aria-hidden className="relative hidden h-44 w-60 shrink-0 sm:block">
-            <div className="retro-sun absolute left-1/2 top-0 w-36 -translate-x-1/2" />
-            <div className="absolute inset-x-0 top-[72px] h-px bg-ink" />
-            <div className="retro-floor absolute inset-x-0 top-[73px] h-24" />
-          </div>
-        </div>
+        <p className="mt-2 max-w-[640px] text-sm leading-relaxed text-dim">
+          Pick a real street, a moment in the past or future, and one world-changing event. Watch how the street unfolds.
+        </p>
       </header>
 
       {/* 2 · Instructions */}
