@@ -1326,7 +1326,7 @@
       ],
       "type": "LoadVideo",
       "widgets_values": [
-        "009fa24d8e3e37420f03035bf7389fae8b802f4a033a752316064d0dbbb404a6.mp4",
+        "clip_1.mp4",
         "image"
       ]
     },
@@ -1378,7 +1378,7 @@
       ],
       "type": "LoadVideo",
       "widgets_values": [
-        "225fd694cdc38125c3ea86bd18c64053a9b8dd3830553111753e06cc14abd7ba.mp4",
+        "clip_2.mp4",
         "image"
       ]
     },
@@ -1430,7 +1430,7 @@
       ],
       "type": "LoadVideo",
       "widgets_values": [
-        "009fa24d8e3e37420f03035bf7389fae8b802f4a033a752316064d0dbbb404a6.mp4",
+        "clip_1.mp4",
         "image"
       ]
     },
@@ -1482,7 +1482,7 @@
       ],
       "type": "LoadVideo",
       "widgets_values": [
-        "225fd694cdc38125c3ea86bd18c64053a9b8dd3830553111753e06cc14abd7ba.mp4",
+        "clip_2.mp4",
         "image"
       ]
     },
