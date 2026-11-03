@@ -294,8 +294,8 @@ export function ScenarioApp() {
     if (made.refineError) setError(`Video made with a basic prompt — the prompt-writing step failed: ${made.refineError}`);
   }
 
-  function spawnChild(id: string) {
-    const { tree: next, id: childId } = addChild(tree, id);
+  function spawnChild(id: string, ppy?: number) {
+    const { tree: next, id: childId } = addChild(tree, id, ppy);
     setTree(next);
     setSelection({ type: "beat", id: childId });
     setPanelOpen(false);

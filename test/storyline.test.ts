@@ -2,16 +2,21 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   MOCK_STORY,
+  NODE_H,
+  NODE_W,
   addChild,
+  axisTicks,
   buildPrompt,
   childrenOf,
   clampYear,
   deleteSubtree,
+  formatYear,
   fromJson,
   keyframeSource,
   pathToRoot,
   planVideo,
   roundYear,
+  tickLabel,
   toJson,
   xToYear,
   yearToX,
@@ -19,16 +24,38 @@ import {
 
 const rootOf = (t: ReturnType<typeof fromJson>) => childrenOf(t, null)[0];
 
-test("year <-> x is a log scale that round-trips", () => {
-  assert.equal(yearToX(0), 0);
-  assert.ok(yearToX(10) < yearToX(100) && yearToX(100) < yearToX(10_000));
-  assert.ok(Math.abs(xToYear(yearToX(340)) - 340) < 1e-6);
+test("year <-> x is linear in the time scale and round-trips", () => {
+  assert.equal(yearToX(0, 80), 0);
+  assert.equal(yearToX(2, 80), 160);
+  assert.equal(yearToX(2, 160), 320); // zooming time doubles the spacing
+  assert.ok(Math.abs(xToYear(yearToX(3.5, 123), 123) - 3.5) < 1e-9);
 });
 
-test("roundYear keeps two significant figures", () => {
-  assert.equal(roundYear(338.17), 340);
-  assert.equal(roundYear(4.4), 4);
+test("roundYear snaps to months by default and to the visible grid when given a scale", () => {
+  assert.equal(roundYear(0.52), 6 / 12);
   assert.equal(roundYear(-3), 0);
+  assert.equal(roundYear(4.4, 80), 4.5); // 80 px/yr: quarter-year grid
+  assert.equal(roundYear(338.17, 1), 340); // 1 px/yr: 10-year grid
+});
+
+test("axisTicks use finer labels as you zoom in and never overlap", () => {
+  const coarse = axisTicks(1, 0, 600);
+  assert.deepEqual(coarse.major.slice(0, 3), [0, 100, 200]);
+  const fine = axisTicks(2000, 0, 1);
+  assert.ok(Math.abs(fine.major[1] - 1 / 12) < 1e-9); // monthly major ticks
+  const spacing = fine.major[1] - fine.major[0];
+  assert.ok(spacing * 2000 >= 96);
+  assert.ok(coarse.minor.every((t) => !coarse.major.includes(t)));
+});
+
+test("formatYear and tickLabel read in months below a year", () => {
+  assert.equal(formatYear(8), "Year 8");
+  assert.equal(formatYear(0.5), "Month 6");
+  assert.equal(formatYear(1.25), "Year 1, month 3");
+  assert.equal(tickLabel(0), "0");
+  assert.equal(tickLabel(0.25), "3 mo");
+  assert.equal(tickLabel(1.5), "1 yr 6 mo");
+  assert.equal(tickLabel(1000), "1,000 yr");
 });
 
 test("fromJson/toJson round-trip the mock story", () => {
@@ -65,9 +92,16 @@ test("clampYear keeps a beat between its parent and its children", () => {
 test("addChild never precedes its parent and avoids overlapping siblings", () => {
   const tree = fromJson(MOCK_STORY);
   const mid = childrenOf(tree, rootOf(tree).id)[0];
-  const { tree: next, id } = addChild(tree, mid.id);
-  assert.ok(next[id].year >= mid.year);
-  assert.ok(Object.values(tree).every((n) => n.y !== next[id].y));
+  const ppy = 80;
+  const { tree: next, id } = addChild(tree, mid.id, ppy);
+  const added = next[id];
+  assert.equal(added.year, mid.year + 1);
+  const overlaps = Object.values(tree).filter(
+    (n) =>
+      Math.abs(yearToX(n.year, ppy) - yearToX(added.year, ppy)) < NODE_W &&
+      Math.abs(n.y - added.y) < NODE_H,
+  );
+  assert.equal(overlaps.length, 0);
 });
 
 test("planVideo pairs keyframes along the root path and flags gaps", () => {

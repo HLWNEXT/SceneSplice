@@ -4,24 +4,31 @@ import { Maximize, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { frameCaption, offsetAt, type StoryFrame } from "../../lib/scenario";
 import {
-  AXIS_TICKS,
+  DEFAULT_PX_PER_YEAR,
   NODE_H,
   NODE_W,
+  axisTicks,
+  clampScale,
   clampYear,
   formatYear,
   isLeaf,
   pathToRoot,
+  tickLabel,
   xToYear,
   yearToX,
   type StoryTree,
 } from "../../lib/storyline";
 import { formatOffset } from "../../lib/timetravel";
 
-type View = { x: number; y: number; k: number };
+// Two independent zooms: `ppy` is the time scale (horizontal px per year, changed by the wheel) and
+// `ns` is the node size (nodes and row spacing, changed by the slider or Ctrl+wheel). Changing one
+// never moves or resizes anything the other controls.
+type View = { x: number; y: number; ppy: number; ns: number };
 
-const MIN_K = 0.2;
-const MAX_K = 2;
+const MIN_NS = 0.5;
+const MAX_NS = 1.6;
 const THUMB_W = 116;
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 type Props = {
   tree: StoryTree;
@@ -31,7 +38,7 @@ type Props = {
   onSelect: (id: string | null) => void;
   editingId: string | null;
   onEditing: (id: string | null) => void;
-  onAddChild: (id: string) => void;
+  onAddChild: (id: string, ppy: number) => void;
   onDelete: (id: string) => void;
   frame: StoryFrame;
   /** Bump to re-frame the whole tree (after a new story is made). */
@@ -57,7 +64,8 @@ export function StorylineCanvas({
   inputs,
 }: Props) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [view, setView] = useState<View>({ x: 0, y: 0, k: 1 });
+  const [view, setView] = useState<View>({ x: 0, y: 0, ppy: DEFAULT_PX_PER_YEAR, ns: 1 });
+  const [vpW, setVpW] = useState(1200);
 
   const vpRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{ sx: number; sy: number; vx: number; vy: number } | null>(null);
@@ -74,20 +82,21 @@ export function StorylineCanvas({
       const el = vpRef.current;
       const all = Object.values(t);
       if (!el || !all.length) return;
-      const minX = Math.min(...all.map((n) => yearToX(n.year))) - NODE_W / 2;
-      const maxX = Math.max(...all.map((n) => yearToX(n.year))) + NODE_W / 2;
+      const years = all.map((n) => n.year);
+      const minYear = Math.min(...years);
+      const span = Math.max(Math.max(...years) - minYear, 1);
       const minY = Math.min(...all.map((n) => n.y));
       const maxY = Math.max(...all.map((n) => n.y)) + NODE_H;
       const pad = 40;
       const availW = el.clientWidth - leftInset;
-      const k = Math.min(
-        1,
-        Math.max(MIN_K, Math.min((availW - pad * 2) / (maxX - minX), (el.clientHeight - pad * 2) / (maxY - minY))),
-      );
+      const ns = clamp((el.clientHeight - pad * 2) / (maxY - minY), 0.55, 1);
+      const ppy = clampScale((availW - pad * 2 - NODE_W * ns) / span);
+      const contentW = span * ppy + NODE_W * ns;
       setView({
-        k,
-        x: leftInset + (availW - (maxX - minX) * k) / 2 - minX * k,
-        y: (el.clientHeight - (maxY - minY) * k) / 2 - minY * k,
+        ns,
+        ppy,
+        x: leftInset + (availW - contentW) / 2 + (NODE_W * ns) / 2 - minYear * ppy,
+        y: (el.clientHeight - (maxY - minY) * ns) / 2 - minY * ns,
       });
     },
     [leftInset],
@@ -95,7 +104,26 @@ export function StorylineCanvas({
 
   useLayoutEffect(() => fit(tree), [fitKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Wheel zoom must be a non-passive native listener so it can preventDefault page scroll.
+  // Track the viewport width so the axis knows how many ticks to draw.
+  useEffect(() => {
+    const el = vpRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setVpW(el.clientWidth));
+    ro.observe(el);
+    setVpW(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  // Node size, anchored at screen-Y `my` so the rows under that point stay put.
+  const setNodeScale = useCallback((ns: number, my: number) => {
+    setView((v) => {
+      const next = clamp(ns, MIN_NS, MAX_NS);
+      return { ...v, ns: next, y: my - (my - v.y) * (next / v.ns) };
+    });
+  }, []);
+
+  // Wheel = time scale (anchored on the cursor's date); Ctrl/Cmd+wheel = node size. Must be a
+  // non-passive native listener so it can preventDefault page scroll / browser zoom.
   useEffect(() => {
     const el = vpRef.current;
     if (!el) return;
@@ -104,11 +132,18 @@ export function StorylineCanvas({
       const r = el.getBoundingClientRect();
       const mx = e.clientX - r.left;
       const my = e.clientY - r.top;
-      setView((v) => {
-        const k = Math.min(MAX_K, Math.max(MIN_K, v.k * Math.exp(-e.deltaY * 0.0015)));
-        const s = k / v.k;
-        return { k, x: mx - (mx - v.x) * s, y: my - (my - v.y) * s };
-      });
+      const f = Math.exp(-e.deltaY * 0.0015);
+      if (e.ctrlKey || e.metaKey) {
+        setView((v) => {
+          const ns = clamp(v.ns * f, MIN_NS, MAX_NS);
+          return { ...v, ns, y: my - (my - v.y) * (ns / v.ns) };
+        });
+      } else {
+        setView((v) => {
+          const ppy = clampScale(v.ppy * f);
+          return { ...v, ppy, x: mx - (mx - v.x) * (ppy / v.ppy) };
+        });
+      }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -138,7 +173,7 @@ export function StorylineCanvas({
   const onGripDown = (e: React.PointerEvent, id: string) => {
     if (e.button !== 0) return;
     const n = tree[id];
-    dragRef.current = { id, cx: e.clientX, cy: e.clientY, wx: yearToX(n.year), wy: n.y };
+    dragRef.current = { id, cx: e.clientX, cy: e.clientY, wx: yearToX(n.year, view.ppy), wy: n.y };
     e.currentTarget.setPointerCapture(e.pointerId);
     onSelect(id);
     setDraggingId(id);
@@ -146,9 +181,9 @@ export function StorylineCanvas({
   const onGripMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
     if (!d) return;
-    const year = xToYear(d.wx + (e.clientX - d.cx) / view.k);
-    const y = d.wy + (e.clientY - d.cy) / view.k;
-    setTree((t) => (t[d.id] ? { ...t, [d.id]: { ...t[d.id], year: clampYear(t, d.id, year), y } } : t));
+    const year = xToYear(d.wx + (e.clientX - d.cx), view.ppy);
+    const y = d.wy + (e.clientY - d.cy) / view.ns;
+    setTree((t) => (t[d.id] ? { ...t, [d.id]: { ...t[d.id], year: clampYear(t, d.id, year, view.ppy), y } } : t));
   };
   const onGripUp = () => {
     dragRef.current = null;
@@ -156,13 +191,14 @@ export function StorylineCanvas({
   };
 
   // -- derived screen-space bits for the timeline + keyframe strip --
-  const sx = (year: number) => view.x + view.k * yearToX(year);
-  const minorTicks = useMemo(() => {
-    const out: number[] = [];
-    for (let e = 0; e < 5; e++) for (let d = 2; d <= 9; d++) out.push(d * 10 ** e);
-    return out;
-  }, []);
+  const sx = (year: number) => view.x + yearToX(year, view.ppy);
+  const ticks = useMemo(
+    () => axisTicks(view.ppy, -view.x / view.ppy, (vpW - view.x) / view.ppy),
+    [view.ppy, view.x, vpW],
+  );
   const keyed = nodes.filter((n) => n.keyframe);
+  const nodeW = NODE_W * view.ns;
+  const nodeH = NODE_H * view.ns;
 
   return (
     <section
@@ -175,7 +211,7 @@ export function StorylineCanvas({
         style={{
           cursor: panRef.current ? "grabbing" : "grab",
           backgroundImage: "radial-gradient(rgba(169,169,176,0.2) 1px, transparent 1px)",
-          backgroundSize: `${24 * view.k}px ${24 * view.k}px`,
+          backgroundSize: `${24 * view.ns}px ${24 * view.ns}px`,
           backgroundPosition: `${view.x}px ${view.y}px`,
         }}
         onPointerDown={onCanvasDown}
@@ -184,20 +220,21 @@ export function StorylineCanvas({
         onPointerCancel={onCanvasUp}
       >
         {nodes.length > 0 &&
-          AXIS_TICKS.map((t) => (
+          ticks.major.map((t) => (
             <div key={t} className="pointer-events-none absolute inset-y-0 w-px bg-stage-line/50" style={{ left: sx(t) }} />
           ))}
 
-        <div className="absolute left-0 top-0 origin-top-left" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.k})` }}>
+        {/* The world layer only translates: sizes are applied per node so time never scales them. */}
+        <div className="absolute left-0 top-0" style={{ transform: `translate(${view.x}px, ${view.y}px)` }}>
           <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width="1" height="1">
             {nodes
               .filter((n) => n.parentId && tree[n.parentId])
               .map((n) => {
                 const p = tree[n.parentId!];
-                const x1 = yearToX(p.year) + NODE_W / 2;
-                const y1 = p.y + NODE_H / 2;
-                const x2 = yearToX(n.year) - NODE_W / 2;
-                const y2 = n.y + NODE_H / 2;
+                const x1 = yearToX(p.year, view.ppy) + nodeW / 2;
+                const y1 = p.y * view.ns + nodeH / 2;
+                const x2 = yearToX(n.year, view.ppy) - nodeW / 2;
+                const y2 = n.y * view.ns + nodeH / 2;
                 const c = Math.max(60, Math.abs(x2 - x1) / 2);
                 const hot = hotPath.has(n.id);
                 return (
@@ -220,89 +257,115 @@ export function StorylineCanvas({
                 key={n.id}
                 data-ui
                 onPointerDown={() => onSelect(n.id)}
-                className={`absolute flex cursor-default flex-col rounded-xl border bg-stage text-void shadow-[0_6px_18px_rgba(0,0,0,0.55)] ${
-                  sel ? "glow border-stage-oxide" : hotPath.has(n.id) ? "border-stage-oxide/60" : "border-stage-line"
-                }`}
-                style={{ left: yearToX(n.year) - NODE_W / 2, top: n.y, width: NODE_W, height: NODE_H, zIndex: draggingId === n.id ? 20 : sel ? 10 : 1 }}
+                className="absolute"
+                style={{
+                  left: yearToX(n.year, view.ppy) - nodeW / 2,
+                  top: n.y * view.ns,
+                  width: nodeW,
+                  height: nodeH,
+                  zIndex: draggingId === n.id ? 20 : sel ? 10 : 1,
+                }}
               >
-                {/* Grip / header: drag left-right to change when this happens */}
                 <div
-                  className="flex cursor-grab items-center justify-between gap-2 rounded-t-xl border-b border-stage-line bg-stage-well px-2.5 py-1 active:cursor-grabbing"
-                  onPointerDown={(e) => onGripDown(e, n.id)}
-                  onPointerMove={onGripMove}
-                  onPointerUp={onGripUp}
-                  onPointerCancel={onGripUp}
-                  title="Drag horizontally to change when this happens"
+                  className={`absolute left-0 top-0 flex origin-top-left cursor-default flex-col rounded-xl border bg-stage text-void shadow-[0_6px_18px_rgba(0,0,0,0.55)] ${
+                    sel ? "glow border-stage-oxide" : hotPath.has(n.id) ? "border-stage-oxide/60" : "border-stage-line"
+                  }`}
+                  style={{ width: NODE_W, height: NODE_H, transform: `scale(${view.ns})` }}
                 >
-                  <span className="plaque-label min-w-0 truncate text-[10px] text-stage-oxide">
-                    {formatOffset(offsetAt(frame, n.year))}
-                    {leaf && <span className="ml-2 text-stage-dim">· end</span>}
-                  </span>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    {n.keyframe && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={n.keyframe.image} alt="" className="h-4 w-7 rounded-sm border border-stage-line object-cover" title="Has a keyframe" />
-                    )}
-                    <button
-                      type="button"
-                      aria-label="Delete beat and its descendants"
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={() => onDelete(n.id)}
-                      className="p-0.5 text-stage-dim hover:text-stage-oxide"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                  {/* Grip / header: drag left-right to change when this happens */}
+                  <div
+                    className="flex cursor-grab items-center justify-between gap-2 rounded-t-xl border-b border-stage-line bg-stage-well px-2.5 py-1 active:cursor-grabbing"
+                    onPointerDown={(e) => onGripDown(e, n.id)}
+                    onPointerMove={onGripMove}
+                    onPointerUp={onGripUp}
+                    onPointerCancel={onGripUp}
+                    title="Drag horizontally to change when this happens"
+                  >
+                    <span className="plaque-label min-w-0 truncate text-[10px] text-stage-oxide">
+                      {formatOffset(offsetAt(frame, n.year))}
+                      {leaf && <span className="ml-2 text-stage-dim">· end</span>}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {n.keyframe && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={n.keyframe.image} alt="" className="h-4 w-7 rounded-sm border border-stage-line object-cover" title="Has a keyframe" />
+                      )}
+                      <button
+                        type="button"
+                        aria-label="Delete beat and its descendants"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={() => onDelete(n.id)}
+                        className="p-0.5 text-stage-dim hover:text-stage-oxide"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <div className="min-h-0 flex-1 px-2.5 py-2">
-                  {editingId === n.id ? (
-                    <textarea
-                      autoFocus
-                      defaultValue={n.text}
-                      onBlur={(e) => {
-                        patch(n.id, { text: e.target.value.trim() || n.text });
-                        onEditing(null);
-                      }}
-                      onKeyDown={(e) => e.key === "Escape" && (e.target as HTMLElement).blur()}
-                      className="h-full w-full resize-none border border-stage-line bg-stage-well p-1 text-[13px] leading-snug text-void outline-none focus:border-stage-oxide"
-                    />
-                  ) : (
-                    <p onClick={() => onEditing(n.id)} className="h-full cursor-text overflow-y-auto text-[13px] leading-snug" title="Click to edit">
-                      {n.text}
-                    </p>
+                  <div className="min-h-0 flex-1 px-2.5 py-2">
+                    {editingId === n.id ? (
+                      <textarea
+                        autoFocus
+                        defaultValue={n.text}
+                        onBlur={(e) => {
+                          patch(n.id, { text: e.target.value.trim() || n.text });
+                          onEditing(null);
+                        }}
+                        onKeyDown={(e) => e.key === "Escape" && (e.target as HTMLElement).blur()}
+                        className="h-full w-full resize-none border border-stage-line bg-stage-well p-1 text-[13px] leading-snug text-void outline-none focus:border-stage-oxide"
+                      />
+                    ) : (
+                      <p onClick={() => onEditing(n.id)} className="h-full cursor-text overflow-y-auto text-[13px] leading-snug" title="Click to edit">
+                        {n.text}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Edge "+" spawns a child */}
+                  <button
+                    type="button"
+                    aria-label="Add child beat"
+                    onClick={() => onAddChild(n.id, view.ppy)}
+                    className="absolute -right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-stage-oxide bg-stage text-stage-oxide hover:bg-accent hover:text-on-accent"
+                  >
+                    <Plus size={14} />
+                  </button>
+                  {n.parentId && (
+                    <span className="pointer-events-none absolute -left-1.5 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-stage-line bg-stage" />
                   )}
                 </div>
-
-                {/* Edge "+" spawns a child */}
-                <button
-                  type="button"
-                  aria-label="Add child beat"
-                  onClick={() => onAddChild(n.id)}
-                  className="absolute -right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-stage-oxide bg-stage text-stage-oxide hover:bg-accent hover:text-on-accent"
-                >
-                  <Plus size={14} />
-                </button>
-                {n.parentId && (
-                  <span className="pointer-events-none absolute -left-1.5 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-stage-line bg-stage" />
-                )}
               </div>
             );
           })}
         </div>
 
         {nodes.length > 0 && (
-          <>
-            <p className="plaque-label pointer-events-none absolute right-3 top-2 text-[10px] text-stage-dim">{frameCaption(frame)}</p>
-            <button
-              type="button"
-              data-ui
-              onClick={() => fit(tree)}
-              className="plaque-label absolute right-3 top-7 inline-flex items-center gap-1.5 rounded-full border border-stage-line bg-stage px-2.5 py-1 text-[10px] text-stage-dim hover:border-stage-oxide hover:text-void"
-            >
-              <Maximize size={11} /> Fit
-            </button>
-          </>
+          <div className="absolute right-3 top-2 flex flex-col items-end gap-1.5">
+            <p className="plaque-label pointer-events-none text-[10px] text-stage-dim">{frameCaption(frame)}</p>
+            <div data-ui className="flex items-center gap-2">
+              <label className="plaque-label flex items-center gap-1.5 rounded-full border border-stage-line bg-stage px-2.5 py-1 text-[10px] text-stage-dim">
+                Node size
+                <input
+                  type="range"
+                  min={MIN_NS}
+                  max={MAX_NS}
+                  step={0.05}
+                  value={view.ns}
+                  aria-label="Node size"
+                  onChange={(e) => setNodeScale(Number(e.target.value), (vpRef.current?.clientHeight ?? 0) / 2)}
+                  className="h-1 w-20 accent-[var(--color-accent)]"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => fit(tree)}
+                className="plaque-label inline-flex items-center gap-1.5 rounded-full border border-stage-line bg-stage px-2.5 py-1 text-[10px] text-stage-dim hover:border-stage-oxide hover:text-void"
+              >
+                <Maximize size={11} /> Fit
+              </button>
+            </div>
+            <p className="plaque-label pointer-events-none text-[9px] text-stage-dim/80">Scroll: time scale · Ctrl+scroll: node size</p>
+          </div>
         )}
 
         {inputs}
@@ -342,12 +405,12 @@ export function StorylineCanvas({
       <div className="relative h-9 shrink-0 overflow-hidden border-t border-stage-line bg-stage-well">
         <div className="absolute inset-x-0 top-0 h-px bg-edge" />
         {nodes.length > 0 &&
-          minorTicks.map((t) => <div key={t} className="absolute top-0 h-1.5 w-px bg-stage-line" style={{ left: sx(t) }} />)}
+          ticks.minor.map((t) => <div key={t} className="absolute top-0 h-1.5 w-px bg-stage-line" style={{ left: sx(t) }} />)}
         {nodes.length > 0 &&
-          AXIS_TICKS.map((t) => (
+          ticks.major.map((t) => (
             <div key={t} className="absolute top-0 flex flex-col items-start" style={{ left: sx(t) }}>
               <div className="h-3 w-px bg-stage-dim" />
-              <span className="plaque-label -translate-x-1/2 pt-0.5 text-[10px] text-stage-dim">{formatYear(t)}</span>
+              <span className="plaque-label -translate-x-1/2 whitespace-nowrap pt-0.5 text-[10px] text-stage-dim">{tickLabel(t)}</span>
             </div>
           ))}
         {nodes.map((n) => (
@@ -359,7 +422,7 @@ export function StorylineCanvas({
         ))}
         {draggingId && tree[draggingId] && (
           <span
-            className="absolute bottom-0.5 -translate-x-1/2 rounded-full bg-accent px-2 text-[10px] font-bold text-on-accent"
+            className="absolute bottom-0.5 -translate-x-1/2 whitespace-nowrap rounded-full bg-accent px-2 text-[10px] font-bold text-on-accent"
             style={{ left: sx(tree[draggingId].year) }}
           >
             {formatYear(tree[draggingId].year)}

@@ -24,7 +24,7 @@ Changing a starting point after a story exists keeps the story on screen but fla
 
 ## Time model
 
-The canvas timeline is log-scaled and only runs forward from Year 0 (see `lib/storyline.ts`), while the time slider is ±200 years. `storyFrame` in `lib/scenario.ts` reconciles them:
+The canvas timeline is linear and only runs forward from Year 0 (see `lib/storyline.ts`), while the time slider is ±200 years. `storyFrame` in `lib/scenario.ts` reconciles them:
 
 | Slider | Year 0 is | Story runs |
 | --- | --- | --- |
@@ -32,11 +32,20 @@ The canvas timeline is log-scaled and only runs forward from Year 0 (see `lib/st
 | N years ago | N years ago | forward to today (an alternate history) |
 | Today | today | 10 years ahead |
 
-Beat headers show the offset from today (`50 YR AGO`); the axis shows years since the start, with a caption saying what Year 0 means.
+Beat headers show the offset from today (`50 YR AGO`); the axis shows time since the start, with a caption saying what Year 0 means.
+
+### Time scale vs node size
+
+The canvas has two independent zooms:
+
+- **Time scale** (pixels per year): mouse wheel, anchored on the date under the cursor. Beats spread apart or together; nodes keep their pixel size.
+- **Node size**: the *Node size* slider or Ctrl+wheel. Scales nodes and row spacing only; beats never move along the timeline.
+
+`year` may be fractional. The axis picks its unit from the scale (`3 mo`, `1 yr`, `1,000 yr`) and shows month ticks once zoomed in. Dragging snaps to the finest visible grid step, so zooming in unlocks quarters, then months. Months are the finest unit; offsets under a year render as `6 MO AHEAD` and `6 months in the future` in headers and prompts.
 
 ## Data model
 
-A tree of beats (`StoryNode`: `parentId`, `text`, `year`, `y`, optional `keyframe` and `video`). X position is a pure function of `year`, so dragging a beat horizontally edits time; a beat is clamped between its parent and earliest child. See `lib/storyline.ts`. No graph library is used.
+A tree of beats (`StoryNode`: `parentId`, `text`, `year`, `y`, optional `keyframe` and `video`). X position is a pure function of `year` and the time scale, so dragging a beat horizontally edits time; a beat is clamped between its parent and earliest child. See `lib/storyline.ts`. No graph library is used.
 
 ## Keyframes
 

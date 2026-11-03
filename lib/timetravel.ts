@@ -58,15 +58,27 @@ export function nearestStage(years: number): TimeStage {
   );
 }
 
+// Beats on the storyline can sit a few months apart, so offsets may be fractional years.
+const splitMonths = (years: number) => {
+  const months = Math.round(Math.abs(years) * 12);
+  return { y: Math.floor(months / 12), m: months % 12 };
+};
+
 export function formatOffset(years: number): string {
-  if (years === 0) return "TODAY";
-  const abs = Math.abs(years).toLocaleString("en-US");
-  return years < 0 ? `${abs} YR AGO` : `${abs} YR AHEAD`;
+  const { y, m } = splitMonths(years);
+  if (y === 0 && m === 0) return "TODAY";
+  const span = [y ? `${y.toLocaleString("en-US")} YR` : "", m ? `${m} MO` : ""].filter(Boolean).join(" ");
+  return years < 0 ? `${span} AGO` : `${span} AHEAD`;
 }
 
 /** Natural-language fragment handed to Gemini as the time context, e.g. "150 years in the past". */
 export function timeHint(years: number): string {
-  if (years === 0) return "today, the present day, unchanged in time";
-  const abs = Math.abs(years).toLocaleString("en-US");
-  return years < 0 ? `${abs} years in the past` : `${abs} years in the future`;
+  const { y, m } = splitMonths(years);
+  if (y === 0 && m === 0) return "today, the present day, unchanged in time";
+  const span = m
+    ? [y ? `${y.toLocaleString("en-US")} ${y === 1 ? "year" : "years"}` : "", `${m} ${m === 1 ? "month" : "months"}`]
+        .filter(Boolean)
+        .join(" and ")
+    : `${y.toLocaleString("en-US")} years`;
+  return years < 0 ? `${span} in the past` : `${span} in the future`;
 }
