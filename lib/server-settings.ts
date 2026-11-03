@@ -12,7 +12,7 @@ export const DEFAULT_CUSTOM_URL = "http://127.0.0.1:8188";
 export const SETTINGS_COOKIE = "decayui_settings";
 
 export type ServerMode = "cloud" | "custom";
-export type StoredSettings = { mode?: ServerMode; url?: string; comfyKey?: string; mapsKey?: string };
+export type StoredSettings = { mode?: ServerMode; url?: string; comfyKey?: string; mapsKey?: string; apiModels?: boolean };
 
 export type ComfyTarget = {
   kind: ServerMode;
@@ -54,6 +54,7 @@ export function parseSettings(cookieValue: string | undefined): StoredSettings {
       url: normalizeUrl(raw.url) ?? undefined,
       comfyKey: clean(raw.comfyKey),
       mapsKey: clean(raw.mapsKey),
+      apiModels: raw.apiModels === true ? true : undefined,
     };
   } catch {
     return {};
@@ -76,7 +77,7 @@ export function resolveComfyTarget(s: StoredSettings, env: Env): ComfyTarget {
   const baseUrl = s.url ?? normalizeUrl(env.COMFY_URL) ?? DEFAULT_CUSTOM_URL;
   // A custom server isn't Comfy Cloud, so the key is never sent as X-API-Key — only offered to the
   // partner nodes. The known LAN server has its own, so nothing is sent there at all.
-  const partnerKey = isKeylessServer(baseUrl) ? undefined : s.comfyKey;
+  const partnerKey = isKeylessServer(baseUrl) ? undefined : (s.comfyKey ?? clean(env.COMFY_CLOUD_API_KEY));
   return { kind: "custom", baseUrl, apiPrefix: "", partnerKey };
 }
 

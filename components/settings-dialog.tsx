@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 type KeyState = { set: boolean; hint: string | null; fromEnv: boolean };
 type Loaded = {
   mode: "cloud" | "custom";
+  apiModels: boolean;
   url: string;
   keylessUrl: string;
   comfyKey: KeyState;
@@ -61,6 +62,7 @@ export function SettingsDialog({ onClose, onSaved }: { onClose: () => void; onSa
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [mode, setMode] = useState<"cloud" | "custom">("custom");
   const [url, setUrl] = useState("");
+  const [apiModels, setApiModels] = useState(false);
   const [comfyKey, setComfyKey] = useState("");
   const [mapsKey, setMapsKey] = useState("");
   const [removeComfy, setRemoveComfy] = useState(false);
@@ -75,6 +77,7 @@ export function SettingsDialog({ onClose, onSaved }: { onClose: () => void; onSa
         setLoaded(s);
         setMode(s.mode);
         setUrl(s.url);
+        setApiModels(s.apiModels);
       })
       .catch(() => setResult({ ok: false, text: "Couldn't load current settings." }));
   }, []);
@@ -91,7 +94,7 @@ export function SettingsDialog({ onClose, onSaved }: { onClose: () => void; onSa
     setBusy(true);
     setResult(null);
     try {
-      const body: Record<string, unknown> = { mode, url: mode === "custom" ? url : undefined };
+      const body: Record<string, unknown> = { mode, apiModels, url: mode === "custom" ? url : undefined };
       if (comfyKey.trim()) body.comfyKey = comfyKey.trim();
       else if (removeComfy) body.comfyKey = "";
       if (mapsKey.trim()) body.mapsKey = mapsKey.trim();
@@ -153,6 +156,18 @@ export function SettingsDialog({ onClose, onSaved }: { onClose: () => void; onSa
         </fieldset>
 
         <div className="mt-4 space-y-4">
+          <label className="flex cursor-pointer items-start gap-3 border border-edge bg-field px-3 py-2">
+            <input type="checkbox" role="switch" checked={apiModels} onChange={(e) => setApiModels(e.target.checked)} disabled={busy} className="mt-1 accent-accent" />
+            <span>
+              <span className="plaque-label block text-xs text-ink">Use API models</span>
+              <span className="mt-1 block font-serif text-xs italic text-dim">
+                {apiModels
+                  ? "WhatIfStreet keyframes use Nano Banana Pro and videos use Seedance 2.5 (5 s) — hosted models billed to the Comfy API key."
+                  : "WhatIfStreet keyframes use FLUX and videos use LTX 2.5 — open-source models on the ComfyUI server. Gemini text steps are API-based either way."}
+              </span>
+            </span>
+          </label>
+
           {mode === "custom" ? (
             <label className="block">
               <span className="plaque-label text-xs text-dim">Server URL</span>

@@ -118,3 +118,26 @@ test("the default clip length is 3 seconds on both video paths, and either can b
   assert.equal(buildVideoWorkflow(single, { imageName: "a", motionPrompt: "p", seed: 1, duration: 6 })[NODE_VIDEO.duration].inputs.value, 6);
   assert.equal(single[NODE_VIDEO.duration].inputs.value, 7, "template must not be mutated");
 });
+
+test("API-model workflows: Nano Banana gets the photo and prompt, Seedance runs 5 s first -> last or from one frame", async () => {
+  const { buildApiImageWorkflow, buildSeedanceWorkflow, API_VIDEO_SECONDS } = await import("../lib/whatifstreet-workflow.ts");
+  const image = JSON.parse(readFileSync("workflows/api_nano_banana_pro.json", "utf8"));
+  const video = JSON.parse(readFileSync("workflows/api_seedance2_5_flf2v.json", "utf8"));
+
+  const img = buildApiImageWorkflow(image, { imageName: "street.png", geminiPrompt: "edit it", seed: 2 ** 40 + 5 });
+  assert.equal(img["11"].inputs.image, "street.png");
+  assert.equal(img["35"].inputs.prompt, "edit it");
+  assert.ok((img["35"].inputs.seed as number) < 2 ** 31);
+
+  const two = buildSeedanceWorkflow(video, { firstImage: "a.png", lastImage: "b.png", prompt: "go", seed: 7 });
+  assert.equal(API_VIDEO_SECONDS, 5);
+  assert.equal(two["38"].inputs["model.duration"], 5);
+  assert.equal(two["38"].inputs["model.prompt"], "go");
+  assert.equal(two["41"].inputs.image, "a.png");
+  assert.equal(two["40"].inputs.image, "b.png");
+
+  const one = buildSeedanceWorkflow(video, { firstImage: null, lastImage: "b.png", prompt: "go", seed: 7 });
+  assert.equal(one["41"].inputs.image, "b.png");
+  assert.equal(one["40"], undefined);
+  assert.equal("last_frame" in one["38"].inputs, false);
+});

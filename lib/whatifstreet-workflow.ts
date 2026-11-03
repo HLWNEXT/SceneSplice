@@ -155,3 +155,61 @@ export function buildFlf2vWorkflow(template: Workflow, p: Flf2vWorkflowParams): 
   set(NODE_FLF2V.duration, "value", p.duration ?? VIDEO_SECONDS);
   return wf;
 }
+
+// --- API models: workflows/api_nano_banana_pro.json and workflows/api_seedance2_5_flf2v.json ---
+// Used instead of the open-source FLUX / LTX workflows when the "API models" setting is on.
+
+/** Clip length for the Seedance (API) video path; its minimum is 4 s. */
+export const API_VIDEO_SECONDS = 5;
+
+export const NODE_API_IMAGE = { inputImage: "11", nanoBanana: "35", outputImage: "30" } as const;
+
+export const API_IMAGE_NODE_PROGRESS: Record<string, { label: string; from: number; to: number }> = {
+  "35": { label: "Nano Banana Pro is editing the street...", from: 0, to: 95 },
+  "30": { label: "Saving image...", from: 95, to: 100 },
+};
+
+/** Nano Banana Pro edits the photo straight from the scene description, so no separate prompt-writer step. */
+export function buildApiImageWorkflow(template: Workflow, p: ImageWorkflowParams): Workflow {
+  const wf = structuredClone(template);
+  if (!wf[NODE_API_IMAGE.inputImage] || !wf[NODE_API_IMAGE.nanoBanana]) throw new Error("API image workflow is missing a node");
+  wf[NODE_API_IMAGE.inputImage].inputs.image = p.imageName;
+  wf[NODE_API_IMAGE.nanoBanana].inputs.prompt = p.geminiPrompt;
+  wf[NODE_API_IMAGE.nanoBanana].inputs.seed = p.seed % 2 ** 31;
+  return wf;
+}
+
+export const NODE_API_VIDEO = { firstFrame: "41", lastFrame: "40", seedance: "38", outputVideo: "16" } as const;
+
+export const API_VIDEO_NODE_PROGRESS: Record<string, { label: string; from: number; to: number }> = {
+  "38": { label: "Seedance 2.5 is generating the video...", from: 0, to: 95 },
+  "16": { label: "Saving video...", from: 95, to: 100 },
+};
+
+export type SeedanceWorkflowParams = {
+  /** The previous keyframe; null starts the clip on the selected keyframe instead. */
+  firstImage: string | null;
+  lastImage: string;
+  prompt: string;
+  seed: number;
+  duration?: number;
+};
+
+/** With two keyframes the clip runs first -> last; with one it starts on that keyframe (the last-frame input is dropped). */
+export function buildSeedanceWorkflow(template: Workflow, p: SeedanceWorkflowParams): Workflow {
+  const wf = structuredClone(template);
+  const node = wf[NODE_API_VIDEO.seedance];
+  if (!node || !wf[NODE_API_VIDEO.firstFrame] || !wf[NODE_API_VIDEO.lastFrame]) throw new Error("API video workflow is missing a node");
+  if (p.firstImage) {
+    wf[NODE_API_VIDEO.firstFrame].inputs.image = p.firstImage;
+    wf[NODE_API_VIDEO.lastFrame].inputs.image = p.lastImage;
+  } else {
+    wf[NODE_API_VIDEO.firstFrame].inputs.image = p.lastImage;
+    delete wf[NODE_API_VIDEO.lastFrame];
+    delete node.inputs.last_frame;
+  }
+  node.inputs["model.prompt"] = p.prompt;
+  node.inputs["model.duration"] = p.duration ?? API_VIDEO_SECONDS;
+  node.inputs.seed = p.seed % 2 ** 31;
+  return wf;
+}

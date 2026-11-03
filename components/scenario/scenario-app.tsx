@@ -8,11 +8,15 @@ import {
   cancelPrompt,
   checkServer,
   outputFileName,
+  queueApiImageStage,
+  queueApiVideoStage,
   queueFlf2vStage,
   queueImageStage,
   queueStoryStage,
   queueVideoPromptStage,
   queueVideoStage,
+  trackApiImageStage,
+  trackApiVideoStage,
   trackFlf2vStage,
   trackImageStage,
   trackStoryStage,
@@ -35,7 +39,7 @@ import {
 import { addChild, deleteSubtree, fromJson, keyframeSource, previousKeyframeNode, type StoryTree } from "../../lib/storyline";
 import { formatOffset, timeHint } from "../../lib/timetravel";
 import { cleanVideoPrompt, fallbackVideoPrompt, videoPromptRequest, type VideoPromptRequest } from "../../lib/video-prompt";
-import { buildGeminiPrompt } from "../../lib/whatifstreet-workflow";
+import { API_VIDEO_SECONDS, buildGeminiPrompt } from "../../lib/whatifstreet-workflow";
 import { StorylineCanvas } from "../storyline/storyline-canvas";
 import type { StreetViewCaptureFn } from "../whatifstreet/street-view-picker";
 import { DetailPanel } from "./detail-panel";
@@ -52,6 +56,14 @@ const isAbort = (err: unknown) => err instanceof DOMException && err.name === "A
 const errorText = (err: unknown) => (err instanceof ComfyError || err instanceof Error ? err.message : String(err));
 
 export function ScenarioApp() {
+  // "API models" setting: hosted image/video models (Nano Banana Pro, Seedance) instead of the open-source ones.
+  const [apiModels, setApiModels] = useState(false);
+  useEffect(() => {
+    fetch("/api/settings", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((s: { apiModels?: boolean }) => setApiModels(!!s.apiModels))
+      .catch(() => {});
+  }, []);
   // --- the four starting inputs ---
   const captureRef = useRef<StreetViewCaptureFn | null>(null);
   const uploadedRef = useRef<{ fn: StreetViewCaptureFn; name: string } | null>(null);
@@ -214,9 +226,9 @@ export function ScenarioApp() {
         eventHint: node.text,
       });
       const clientId = crypto.randomUUID();
-      const { promptId } = await queueImageStage({ imageName, geminiPrompt: prompt, seed: Math.floor(Math.random() * 2 ** 32) }, clientId);
+      const { promptId } = await (apiModels ? queueApiImageStage : queueImageStage)({ imageName, geminiPrompt: prompt, seed: Math.floor(Math.random() * 2 ** 32) }, clientId);
       promptIdRef.current = promptId;
-      const file = await trackImageStage(promptId, clientId, onProgress, ctrl.signal);
+      const file = await (apiModels ? trackApiImageStage : trackImageStage)(promptId, clientId, onProgress, ctrl.signal);
       return { prompt, file };
     });
     if (done) patch(id, { keyframe: { prompt: done.prompt, image: viewUrl(done.file), file: done.file, generatedAt: Date.now() }, video: undefined, videoMeta: undefined });
@@ -253,6 +265,7 @@ export function ScenarioApp() {
             firstImage: prevFile ? outputFileName(prevFile) : null,
             prompt: videoPromptRequest(request),
             seed: Math.floor(Math.random() * 2 ** 31),
+            seconds: apiModels ? API_VIDEO_SECONDS : undefined,
           },
           clientId,
         );
@@ -266,11 +279,13 @@ export function ScenarioApp() {
 
       const clientId = crypto.randomUUID();
       const seed = Math.floor(Math.random() * 2 ** 32);
-      const queued = prevFile
+      const queued = apiModels
+        ? await queueApiVideoStage({ firstImage: prevFile ? outputFileName(prevFile) : null, lastImage: outputFileName(file), prompt, seed }, clientId)
+        : prevFile
         ? await queueFlf2vStage({ firstImage: outputFileName(prevFile), lastImage: outputFileName(file), prompt, seed }, clientId)
         : await queueVideoStage({ imageName: outputFileName(file), motionPrompt: prompt, seed }, clientId);
       promptIdRef.current = queued.promptId;
-      const track = prevFile ? trackFlf2vStage : trackVideoStage;
+      const track = apiModels ? trackApiVideoStage : prevFile ? trackFlf2vStage : trackVideoStage;
       const video = await track(queued.promptId, clientId, slice(10, 100, onProgress), ctrl.signal);
       return { video, prompt, refineError };
     });

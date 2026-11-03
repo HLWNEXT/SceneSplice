@@ -28,7 +28,7 @@ test("the known LAN server is recognised however the user types it", () => {
 });
 
 test("settings survive a cookie round trip and garbage cookies parse to empty settings", () => {
-  const s = { mode: "cloud" as const, url: "http://10.0.0.5:8188", comfyKey: "k1", mapsKey: "m1" };
+  const s = { mode: "cloud" as const, url: "http://10.0.0.5:8188", comfyKey: "k1", mapsKey: "m1", apiModels: true };
   assert.deepEqual(parseSettings(serializeSettings(s)), s);
   assert.deepEqual(parseSettings("%7Bnot json"), {});
   assert.deepEqual(parseSettings(undefined), {});

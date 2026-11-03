@@ -20,6 +20,7 @@ function describe(stored: StoredSettings) {
   const target = resolveComfyTarget(stored, process.env);
   return {
     mode: target.kind,
+    apiModels: !!stored.apiModels,
     url: target.kind === "custom" ? target.baseUrl : (stored.url ?? normalizeUrl(process.env.COMFY_URL) ?? DEFAULT_CUSTOM_URL),
     keylessUrl: KEYLESS_SERVER_URL,
     keyWaived: target.kind === "custom" && isKeylessServer(target.baseUrl),
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest) {
     if (body.url && !url) return NextResponse.json({ error: "Server URL must start with http:// or https://." }, { status: 400 });
     next.url = url ?? undefined;
   }
+  if (typeof body.apiModels === "boolean") next.apiModels = body.apiModels || undefined;
   next.comfyKey = applyKey(current.comfyKey, body.comfyKey);
   next.mapsKey = applyKey(current.mapsKey, body.mapsKey);
 
