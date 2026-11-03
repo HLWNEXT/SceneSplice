@@ -1,5 +1,6 @@
 "use client";
 
+import { Download, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { butterflyPrompt as toButterflyPrompt, type ButterflySelection } from "../../lib/butterfly";
 import { climatePrompt as toClimatePrompt, type ClimateSelection } from "../../lib/climate";
@@ -43,6 +44,7 @@ import { addChild, attachOrigin, deleteSubtree, fromJson, keyframeSource, previo
 import { formatOffset, timeHint } from "../../lib/timetravel";
 import { cleanVideoPrompt, fallbackVideoPrompt, videoPromptRequest, type VideoPromptRequest } from "../../lib/video-prompt";
 import { mergeOrder, mergeSignature } from "../../lib/merge-video";
+import { exportStoryFile, parseStoryFile } from "../../lib/storyline-file";
 import { API_VIDEO_SECONDS, buildGeminiPrompt } from "../../lib/whatifstreet-workflow";
 import { StorylineCanvas } from "../storyline/storyline-canvas";
 import type { StreetViewCaptureFn } from "../whatifstreet/street-view-picker";
@@ -59,6 +61,9 @@ const STEPS = [
 
 const isAbort = (err: unknown) => err instanceof DOMException && err.name === "AbortError";
 const errorText = (err: unknown) => (err instanceof ComfyError || err instanceof Error ? err.message : String(err));
+
+const fileButton =
+  "plaque-label chrome inline-flex items-center gap-1.5 rounded-full border-2 border-ink px-4 py-2 text-[11px] text-ink disabled:cursor-not-allowed disabled:opacity-45";
 
 export function ScenarioApp() {
   // "API models" setting: hosted image/video models (Nano Banana Pro, Seedance) instead of the open-source ones.
@@ -319,6 +324,47 @@ export function ScenarioApp() {
     if (made.refineError) setError(`Video made with a basic prompt — the prompt-writing step failed: ${made.refineError}`);
   }
 
+  // --- storyline file: export the story as JSON, or load one back in ---
+  const importRef = useRef<HTMLInputElement | null>(null);
+
+  function exportStory() {
+    const text = exportStoryFile({
+      inputs: { location: locationLabel, years: years ?? 0, butterfly, climate, climateSet },
+      tree,
+      film: film?.file ?? null,
+    });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    a.download = `whatifstreet-storyline-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async function importStory(file: File) {
+    try {
+      const data = parseStoryFile(await file.text(), viewUrl);
+      if (hasStory && !window.confirm("Replace the current storyline with the imported one?")) return;
+      const { inputs } = data;
+      const loaded = mergeSignature(mergeOrder(data.tree));
+      setLocationLabel(inputs.location);
+      setYears(inputs.years);
+      setButterfly(inputs.butterfly);
+      setClimate(inputs.climate);
+      setClimateSet(inputs.climateSet);
+      setTree(data.tree);
+      setFrame(storyFrame(inputs.years));
+      setFilm(data.film ? { file: data.film, signature: loaded } : null);
+      setStale(false);
+      setSelection(null);
+      setPanelOpen(false);
+      setEditingId(null);
+      setError(null);
+      setFitKey((k) => k + 1);
+    } catch (err) {
+      setError(`Couldn't import that file: ${errorText(err)}`);
+    }
+  }
+
   // Joins every beat's video, earliest first, into one film.
   async function makeFilm() {
     if (clips.length < 2) return;
@@ -393,6 +439,25 @@ export function ScenarioApp() {
       </ol>
 
       {/* 3 · Storyline canvas, with the four input nodes */}
+      <div className="mb-2 flex justify-end gap-2">
+        <input
+          ref={importRef}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={(e) => {
+            const picked = e.target.files?.[0];
+            e.target.value = "";
+            if (picked) void importStory(picked);
+          }}
+        />
+        <button type="button" onClick={() => importRef.current?.click()} disabled={!!job} className={fileButton}>
+          <Upload size={13} /> Import storyline
+        </button>
+        <button type="button" onClick={exportStory} disabled={!hasStory} className={fileButton}>
+          <Download size={13} /> Export storyline
+        </button>
+      </div>
       <StorylineCanvas
         tree={tree}
         setTree={setTree}

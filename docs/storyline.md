@@ -55,6 +55,10 @@ Keyframes chain: a beat edits its nearest ancestor's keyframe; the first one edi
 
 **Make your story** also uploads the captured Street View photo and puts it on the canvas as **Keyframe 0** (`attachOrigin` in `lib/storyline.ts`), drawn one node to the left of the story's first beat. Every storyline hangs from it, so the first beat's keyframe is edited from this photo and its video runs photo -> first keyframe. It is locked: it cannot be dragged, edited, regenerated or deleted, and its only action is **Make video** (a clip of the street as it is). It is included in the final film like any other clip.
 
+## Import and export
+
+**Export storyline** / **Import storyline** (above the canvas) save and load the story as JSON (`lib/storyline-file.ts`, tested). The file has the starting points, every beat (text, year, position), keyframe 0, and *references* to the keyframe, video and final-film files on the ComfyUI server, not the media itself. So an imported story shows its images and videos only while those files still exist on the server it is loaded against. The Street View capture itself can't be saved: an imported story keeps working (keyframes chain from keyframe 0, videos and the film can be made), but to remake the story you set the location again. The file is validated on import (one root, no loops, valid file references); bad files are rejected with a message.
+
 ## Video
 
 **Make video** always runs two ComfyUI jobs:
