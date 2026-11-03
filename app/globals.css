@@ -1,30 +1,190 @@
-:root { color-scheme: dark; font-family: system-ui, sans-serif; background: #101114; color: #f5f5f5; }
-* { box-sizing: border-box; }
-body { margin: 0; }
-.shell { width: min(1120px, calc(100% - 32px)); margin: auto; padding: 32px 0 64px; }
-.masthead { margin: 30px 0; }
-.eyebrow, .hint { color: #aaa; font: 12px ui-monospace, monospace; letter-spacing: .08em; }
-h1 { margin: 12px 0; font-size: clamp(48px, 8vw, 92px); line-height: .95; letter-spacing: -.06em; }
-.lede { max-width: 620px; color: #bbb; line-height: 1.6; }
-.studio { display: grid; grid-template-columns: 340px 1fr; min-height: 550px; overflow: hidden; border: 1px solid #34363c; border-radius: 16px; background: #191a1f; }
-.controls { display: flex; flex-direction: column; gap: 16px; padding: 20px; border-right: 1px solid #34363c; }
-.field { display: grid; gap: 8px; color: #d4d4d8; font-size: 13px; }
-input:not([type=range]), select, textarea { width: 100%; padding: 10px; border: 1px solid #41434a; border-radius: 8px; background: #111216; color: #f5f5f5; font: inherit; }
-input[type=range] { width: 100%; accent-color: #b994ff; }
-textarea { min-height: 72px; resize: vertical; }
-fieldset { display: grid; gap: 12px; padding: 14px; border: 1px solid #41434a; border-radius: 10px; }
-legend { padding: 0 6px; color: #d4d4d8; font-size: 13px; }
-button { padding: 11px 13px; border: 1px solid #595b64; border-radius: 8px; background: #292a30; color: white; cursor: pointer; font: inherit; font-weight: 650; }
-button.primary { border-color: #c0a5ff; background: #c0a5ff; color: #15121d; }
-button:disabled { opacity: .45; cursor: not-allowed; }
-.status { min-height: 2.5em; margin: 0; color: #bbb; font-size: 13px; line-height: 1.5; }
-.status.error { color: #ffaaaa; }
-.preview { display: grid; align-content: center; justify-items: center; gap: 8px; min-width: 0; padding: 20px; background: #101114; }
-.preview canvas, .preview video { display: block; width: min(100%, 720px); height: auto; aspect-ratio: 16 / 9; background: #241325; object-fit: contain; }
-.preview > p:not(.hint) { max-width: 380px; color: #aaa; text-align: center; line-height: 1.6; }
-.results { margin-top: 28px; }
-.results article { margin: 14px 0; padding: 16px; border: 1px solid #34363c; border-radius: 12px; background: #191a1f; }
-.results h3 { overflow-wrap: anywhere; }
-.results video { display: block; width: min(100%, 760px); max-height: 500px; margin: 12px 0; background: black; }
-.results a { color: #c0a5ff; }
-@media (max-width: 760px) { .studio { grid-template-columns: 1fr; } .controls { border-right: 0; border-bottom: 1px solid #34363c; } }
+@import "tailwindcss";
+
+/*
+ * Retro-futurism: the optimistic, machine-age idea of "the future" as seen from the mid-century.
+ * Monochrome black / grey / white with a single International Klein Blue accent (#002FA7).
+ * Motifs: monospaced terminal type, HUD readouts and registration marks, grids and a horizon,
+ * a striped sun disc, soft rounded forms and pills, brushed-chrome gradients, scanlines, glow.
+ *
+ * Token names are kept from the previous theme so every component re-themes without edits:
+ * the light "void/panel/field" family is the instrument panel, the dark "stage" family is the screen.
+ */
+@theme {
+  --color-void: #dcdcdc;
+  --color-panel: #ececec;
+  --color-field: #fafafa;
+  --color-line: #bdbdbd;
+  --color-edge: #1a1a1a;
+  --color-dim: #5b5b5b;
+  --color-ink: #0a0a0a;
+  --color-accent: #002fa7;
+  --color-on-accent: #ffffff;
+  --color-stage: #0c0c0e;
+  --color-stage-well: #050506;
+  --color-stage-line: #3a3a40;
+  --color-stage-dim: #a9a9b0;
+  /* Klein blue is too dark to read as text or lines on the black screen, so the screen uses a lifted tint. */
+  --color-stage-oxide: #5b83ff;
+  --color-sage: #002fa7;
+  --color-oxide: #b3261e;
+
+  --font-display: var(--font-space-mono), "Space Mono", ui-monospace, monospace;
+  --font-serif: var(--font-space-mono), "Space Mono", ui-monospace, monospace;
+  --font-mono: var(--font-space-mono), "Space Mono", ui-monospace, monospace;
+}
+
+html,
+body {
+  background: var(--color-void);
+  color-scheme: light;
+  color: var(--color-ink);
+  font-family: var(--font-space-mono), "Space Mono", ui-monospace, monospace;
+}
+
+/* Drafting-grid page with a soft top highlight, like a lit instrument panel. */
+body {
+  background-color: var(--color-void);
+  background-image:
+    radial-gradient(ellipse 120% 60% at 50% -10%, rgba(255, 255, 255, 0.85), transparent 65%),
+    linear-gradient(rgba(0, 0, 0, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.055) 1px, transparent 1px);
+  background-size: auto, 32px 32px, 32px 32px;
+  background-attachment: fixed;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+/* The app was drawn with square corners; retro-futurism is soft and rounded. These rules are unlayered,
+   so they win over Tailwind's layered `rounded-none` without touching every component. */
+.rounded-none {
+  border-radius: 12px;
+}
+
+/* Uppercase, widely tracked HUD label for eyebrows and section captions. */
+.plaque-label {
+  font-family: var(--font-space-mono), "Space Mono", ui-monospace, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+}
+
+/* Registration/crop marks just outside the corners of a panel, like a technical readout. */
+.plate-marks {
+  position: relative;
+}
+.plate-marks::before,
+.plate-marks::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
+.plate-marks::before {
+  top: -7px;
+  left: -7px;
+  border-top: 2px solid var(--color-accent);
+  border-left: 2px solid var(--color-accent);
+}
+.plate-marks::after {
+  bottom: -7px;
+  right: -7px;
+  border-bottom: 2px solid var(--color-accent);
+  border-right: 2px solid var(--color-accent);
+}
+
+/* Brushed-chrome fill for secondary buttons and tabs. */
+.chrome {
+  background-image: linear-gradient(180deg, #ffffff 0%, #e3e3e3 48%, #c9c9c9 52%, #ececec 100%);
+}
+.chrome:hover {
+  background-image: linear-gradient(180deg, #ffffff 0%, #f1f1f1 48%, #dcdcdc 52%, #f4f4f4 100%);
+}
+
+/* Faint CRT scanlines over dark "screens". */
+.scanlines {
+  position: relative;
+}
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px);
+  mix-blend-mode: screen;
+}
+
+/* Soft Klein-blue glow for the selected thing on a screen. */
+.glow {
+  box-shadow:
+    0 0 0 1px var(--color-stage-oxide),
+    0 0 22px rgba(91, 131, 255, 0.55);
+}
+
+/* The striped sun disc: a Klein-blue circle whose lower half is cut into widening bands. */
+.retro-sun {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--color-accent);
+  -webkit-mask:
+    linear-gradient(#000, #000) top / 100% 52% no-repeat,
+    repeating-linear-gradient(#000 0 9px, transparent 9px 13px) bottom / 100% 48% no-repeat;
+  mask:
+    linear-gradient(#000, #000) top / 100% 52% no-repeat,
+    repeating-linear-gradient(#000 0 9px, transparent 9px 13px) bottom / 100% 48% no-repeat;
+}
+
+/* Receding floor grid under the sun. */
+.retro-floor {
+  background-image:
+    linear-gradient(var(--color-accent) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-accent) 1px, transparent 1px);
+  background-size: 28px 28px;
+  transform: perspective(160px) rotateX(58deg);
+  transform-origin: top center;
+  -webkit-mask-image: linear-gradient(#000, transparent 92%);
+  mask-image: linear-gradient(#000, transparent 92%);
+}
+
+/* Chrono-slider thumb */
+input[type="range"].chrono {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  width: 100%;
+  height: 28px;
+  cursor: pointer;
+}
+input[type="range"].chrono::-webkit-slider-runnable-track {
+  height: 1px;
+  background: transparent;
+}
+input[type="range"].chrono::-moz-range-track {
+  height: 1px;
+  background: transparent;
+}
+input[type="range"].chrono::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 22px;
+  margin-top: -10.5px;
+  background: var(--color-accent);
+  border: 2px solid var(--color-field);
+  border-radius: 7px;
+  box-shadow: 0 0 0 1px var(--color-ink);
+}
+input[type="range"].chrono::-moz-range-thumb {
+  width: 10px;
+  height: 18px;
+  background: var(--color-accent);
+  border: 2px solid var(--color-field);
+  border-radius: 7px;
+  box-shadow: 0 0 0 1px var(--color-ink);
+}
+input[type="range"].chrono:focus-visible {
+  outline: 2px dashed var(--color-accent);
+  outline-offset: 4px;
+}

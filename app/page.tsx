@@ -1,5 +1,5 @@
-import { AppRunner } from "../components/app-runner";
+import { AppShell } from "../components/app-shell";
 
 export default function Page() {
-  return <AppRunner />;
+  return <AppShell />;
 }
