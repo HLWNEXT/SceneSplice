@@ -26,6 +26,8 @@ export type VideoPromptWorkflowParams = {
   firstImage: string | null;
   prompt: string;
   seed: number;
+  /** Clip length the prompt should fit; the template says three seconds. */
+  seconds?: number;
 };
 
 /** Returns a copy of the template with Gemini looking at one image, or at first-then-last when both exist. */
@@ -41,6 +43,10 @@ export function buildVideoPromptWorkflow(template: Workflow, p: VideoPromptWorkf
   }
   wf[NODE_VPROMPT.gemini].inputs.prompt = p.prompt;
   wf[NODE_VPROMPT.gemini].inputs.seed = p.seed;
+  if (p.seconds && p.seconds !== 3) {
+    const sys = wf[NODE_VPROMPT.gemini].inputs.system_prompt;
+    if (typeof sys === "string") wf[NODE_VPROMPT.gemini].inputs.system_prompt = sys.replace("about three seconds", `about ${p.seconds} seconds`);
+  }
   return wf;
 }
 

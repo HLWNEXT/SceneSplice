@@ -62,6 +62,10 @@ Keyframes chain: a beat edits its nearest ancestor's keyframe; the first one edi
 
 The flf2v file is used exactly as exported from ComfyUI; `buildFlf2vWorkflow` only sets the two frames, the prompt and the seed (node ids in `NODE_FLF2V`). It also switches the template's built-in LTX prompt enhancer **off**, because Gemini has already written the prompt from both frames and a second rewrite only blurs it. Clip length is `VIDEO_SECONDS` (3 s, set in `lib/whatifstreet-workflow.ts` and applied to both video paths, since generation time grows steeply with length); 1280x720 and 24 fps come from the templates. The chosen prompt and mode are kept on the node (`videoMeta`) and shown under the video.
 
+## API models
+
+Settings (gear) has a **Use API models** switch. Off (default): keyframes use FLUX and videos use LTX 2.5 on the ComfyUI server. On: keyframes run `workflows/api_nano_banana_pro.json` (Nano Banana Pro edits the photo straight from the scene description, no separate prompt-writer job) and videos run `workflows/api_seedance2_5_flf2v.json` (Seedance 2.5, `API_VIDEO_SECONDS` = 5 s). With no earlier keyframe, Seedance starts on the selected keyframe and the last-frame input is dropped. The story and video-prompt steps use Gemini either way. The switch lives in the settings cookie and applies to WhatIfStreet only; Decay Studio is unchanged.
+
 ## Files
 
 | File | Role |

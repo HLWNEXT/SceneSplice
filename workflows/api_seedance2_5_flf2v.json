@@ -1,0 +1,62 @@
+{
+  "16": {
+    "inputs": {
+      "filename_prefix": "video/Seedance2.5_flf2v",
+      "format": "auto",
+      "format.codec": "auto",
+      "codec": "auto",
+      "video": [
+        "38",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "Save Video"
+    }
+  },
+  "38": {
+    "inputs": {
+      "model": "Seedance 2.5",
+      "model.prompt": "transition from first frame to last frame",
+      "model.resolution": "720p",
+      "model.duration": 4,
+      "model.generate_audio": true,
+      "model.output_format": "mp4",
+      "seed": 1009477090,
+      "watermark": false,
+      "first_frame_asset_id": "",
+      "last_frame_asset_id": "",
+      "first_frame": [
+        "41",
+        0
+      ],
+      "last_frame": [
+        "40",
+        0
+      ]
+    },
+    "class_type": "ByteDance2FirstLastFrameNode",
+    "_meta": {
+      "title": "ByteDance Seedance 2.5 First-Last-Frame to Video"
+    }
+  },
+  "40": {
+    "inputs": {
+      "image": "03 1.PNG"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "41": {
+    "inputs": {
+      "image": "+WELLNESS RENDER_RECEPTION.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  }
+}

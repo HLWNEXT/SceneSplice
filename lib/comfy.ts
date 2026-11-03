@@ -3,6 +3,8 @@
 
 import decayTemplate from "../workflows/decay.api.json";
 import imageTemplate from "../workflows/whatifstreet.image.api.json";
+import apiImageTemplate from "../workflows/api_nano_banana_pro.json";
+import apiVideoTemplate from "../workflows/api_seedance2_5_flf2v.json";
 import flf2vTemplate from "../workflows/ltx-2-5-flf2v.json";
 import storyTemplate from "../workflows/storyline.text.api.json";
 import videoPromptTemplate from "../workflows/videoprompt.text.api.json";
@@ -16,17 +18,24 @@ import {
 } from "./video-prompt";
 import { NODE, NODE_PROGRESS, buildWorkflow, type WorkflowParams } from "./workflow";
 import {
+  API_IMAGE_NODE_PROGRESS,
+  API_VIDEO_NODE_PROGRESS,
   IMAGE_NODE_PROGRESS,
+  NODE_API_IMAGE,
+  NODE_API_VIDEO,
   NODE_IMAGE,
   NODE_VIDEO,
   VIDEO_NODE_PROGRESS,
   FLF2V_NODE_PROGRESS,
   NODE_FLF2V,
+  buildApiImageWorkflow,
   buildFlf2vWorkflow,
   buildImageWorkflow,
+  buildSeedanceWorkflow,
   buildVideoWorkflow,
   type Flf2vWorkflowParams,
   type ImageWorkflowParams,
+  type SeedanceWorkflowParams,
   type VideoWorkflowParams,
 } from "./whatifstreet-workflow";
 
@@ -260,6 +269,34 @@ export async function trackVideoStage(
   signal?: AbortSignal,
 ): Promise<OutputFile> {
   return trackGraph(promptId, clientId, VIDEO_NODE_PROGRESS, NODE_VIDEO.outputVideo, onProgress, signal);
+}
+
+/** API-model path: Nano Banana Pro edits the keyframe. */
+export async function queueApiImageStage(params: ImageWorkflowParams, clientId: string): Promise<{ promptId: string }> {
+  return queueGraph(buildApiImageWorkflow(apiImageTemplate as unknown as Workflow, params), clientId);
+}
+
+export async function trackApiImageStage(
+  promptId: string,
+  clientId: string,
+  onProgress: (e: ProgressEvent) => void,
+  signal?: AbortSignal,
+): Promise<OutputFile> {
+  return trackGraph(promptId, clientId, API_IMAGE_NODE_PROGRESS, NODE_API_IMAGE.outputImage, onProgress, signal);
+}
+
+/** API-model path: Seedance 2.5 first/last-frame video. */
+export async function queueApiVideoStage(params: SeedanceWorkflowParams, clientId: string): Promise<{ promptId: string }> {
+  return queueGraph(buildSeedanceWorkflow(apiVideoTemplate as unknown as Workflow, params), clientId);
+}
+
+export async function trackApiVideoStage(
+  promptId: string,
+  clientId: string,
+  onProgress: (e: ProgressEvent) => void,
+  signal?: AbortSignal,
+): Promise<OutputFile> {
+  return trackGraph(promptId, clientId, API_VIDEO_NODE_PROGRESS, NODE_API_VIDEO.outputVideo, onProgress, signal);
 }
 
 /** POST /prompt with the first-frame / last-frame video workflow. */
