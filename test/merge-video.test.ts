@@ -35,3 +35,18 @@ test("the merge graph chains every clip, in order, into one SaveVideo", () => {
   assert.equal(wf[((wf[(batch.inputs["images.image1"] as [string, number])[0]]).inputs.video as [string, number])[0]].inputs.file, "v/c.mp4 [output]");
   assert.throws(() => buildMergeWorkflow(["x"]), /at least two/);
 });
+
+test("keyframe 0 becomes the root: the story's first beat hangs from it and chains from its photo", async () => {
+  const { attachOrigin, fromJson, keyframeSource, previousKeyframeNode, ORIGIN_ID, childrenOf } = await import("../lib/storyline.ts");
+  const story = fromJson({ text: "first", year: 0, children: [{ text: "second", year: 5 }] });
+  const photo = { filename: "p.png", subfolder: "", type: "input" };
+  const tree = attachOrigin(story, { prompt: "", image: "/x", file: photo, generatedAt: 0 }, "orig");
+  assert.equal(childrenOf(tree, null).length, 1);
+  assert.equal(tree[ORIGIN_ID].origin, true);
+  const first = childrenOf(tree, ORIGIN_ID)[0];
+  assert.equal(first.text, "first");
+  assert.equal(tree[ORIGIN_ID].y, first.y);
+  assert.deepEqual(keyframeSource(tree, first.id), photo);
+  assert.equal(previousKeyframeNode(tree, first.id)?.id, ORIGIN_ID);
+  assert.equal(previousKeyframeNode(tree, ORIGIN_ID), null);
+});

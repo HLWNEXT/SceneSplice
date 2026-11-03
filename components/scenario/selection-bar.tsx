@@ -55,7 +55,7 @@ export function SelectionBar(p: Props) {
     title = INPUT_LABELS[p.selection.kind];
     detail = p.summaries[p.selection.kind] ?? "Not set yet";
   } else if (p.selection?.type === "beat" && p.beat) {
-    title = `Story beat · ${formatOffset(offsetAt(p.frame, p.beat.year))}`;
+    title = p.beat.origin ? "Keyframe 0 · original photo" : `Story beat · ${formatOffset(offsetAt(p.frame, p.beat.year))}`;
     detail = p.beat.text;
   }
 
@@ -77,15 +77,17 @@ export function SelectionBar(p: Props) {
 
         {p.selection?.type === "beat" && p.beat && (
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={p.onEditText} disabled={busy} className={quiet}>
-              <PencilLine size={13} /> Edit text
-            </button>
-            <button type="button" onClick={p.onGenerateKeyframe} disabled={busy || offline} className={strong}>
+            {!p.beat.origin && (
+              <button type="button" onClick={p.onEditText} disabled={busy} className={quiet}>
+                <PencilLine size={13} /> Edit text
+              </button>
+            )}
+            {!p.beat.origin && <button type="button" onClick={p.onGenerateKeyframe} disabled={busy || offline} className={strong}>
               <Spin on={p.job?.kind === "keyframe" && p.job.id === p.beat.id}>
                 <ImagePlus size={13} />
               </Spin>
               {p.beat.keyframe ? "Regenerate keyframe" : "Generate keyframe"}
-            </button>
+            </button>}
             <button
               type="button"
               onClick={p.onMakeVideo}
@@ -104,12 +106,16 @@ export function SelectionBar(p: Props) {
               </Spin>
               {p.beat.video ? "Regenerate video" : "Make video"}
             </button>
-            <button type="button" onClick={p.onAddChild} disabled={busy} className={quiet}>
-              <Plus size={13} /> Add next beat
-            </button>
-            <button type="button" onClick={p.onDelete} disabled={busy} className={quiet}>
-              <Trash2 size={13} /> Delete
-            </button>
+            {!p.beat.origin && (
+              <>
+                <button type="button" onClick={p.onAddChild} disabled={busy} className={quiet}>
+                  <Plus size={13} /> Add next beat
+                </button>
+                <button type="button" onClick={p.onDelete} disabled={busy} className={quiet}>
+                  <Trash2 size={13} /> Delete
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

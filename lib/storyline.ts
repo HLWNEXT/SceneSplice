@@ -21,6 +21,8 @@ export type StoryNode = {
   video?: ComfyFile;
   /** How the clip was made: the prompt LTX animated from, and whether it ran first-frame to last-frame. */
   videoMeta?: { prompt: string; mode: "flf2v" | "single" };
+  /** Keyframe 0: the original Street View photo every storyline grows from. Not editable, draggable or deletable. */
+  origin?: boolean;
 };
 
 export type StoryTree = Record<string, StoryNode>;
@@ -195,6 +197,24 @@ export function addChild(
 }
 
 // Nested JSON -> flat tree with auto layout: leaves take consecutive rows, parents center on children.
+export const ORIGIN_ID = "origin";
+/** Horizontal gap, in px at full node size, between keyframe 0 and the first beat. */
+export const ORIGIN_GAP = 56;
+
+/**
+ * Puts the original photo in front of a storyline as keyframe 0: a locked node the story's first beat
+ * hangs from, so every keyframe and video chain starts from the real street.
+ */
+export function attachOrigin(tree: StoryTree, photo: Keyframe, text: string): StoryTree {
+  const root = Object.values(tree).find((n) => n.parentId === null);
+  if (!root) return tree;
+  return {
+    [ORIGIN_ID]: { id: ORIGIN_ID, parentId: null, text, year: root.year, y: root.y, keyframe: photo, origin: true },
+    ...tree,
+    [root.id]: { ...root, parentId: ORIGIN_ID },
+  };
+}
+
 export function fromJson(root: StoryJson): StoryTree {
   const tree: StoryTree = {};
   let row = 0;

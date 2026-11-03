@@ -35,7 +35,7 @@ export function DetailPanel(p: Props) {
   return (
     <section aria-label="Editor" className="plate-marks rounded-2xl border-2 border-ink bg-panel p-5">
       <p className="plaque-label mb-4 text-[11px] text-dim">
-        {kind ? `Editing · ${INPUT_LABELS[kind]}` : showBeat ? `Preview · ${formatOffset(offsetAt(p.frame, p.beat!.year))}` : "Editor"}
+        {kind ? `Editing · ${INPUT_LABELS[kind]}` : showBeat ? (p.beat!.origin ? "Preview · Keyframe 0" : `Preview · ${formatOffset(offsetAt(p.frame, p.beat!.year))}`) : "Editor"}
       </p>
 
       {/* Always mounted, only hidden: unmounting the picker reports its capture as lost, which would
@@ -83,7 +83,7 @@ export function DetailPanel(p: Props) {
                 <p className="px-6 text-center font-serif text-sm text-stage-dim">No keyframe yet. Use “Generate keyframe” above.</p>
               )}
             </div>
-            <figcaption className="plaque-label mt-1.5 text-[11px] text-dim">Keyframe</figcaption>
+            <figcaption className="plaque-label mt-1.5 text-[11px] text-dim">{p.beat!.origin ? "Keyframe 0 · original Street View photo" : "Keyframe"}</figcaption>
           </figure>
           <figure>
             <div className="flex aspect-video items-center justify-center overflow-hidden rounded-xl border-2 border-ink bg-stage-well">

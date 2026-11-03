@@ -51,6 +51,10 @@ A tree of beats (`StoryNode`: `parentId`, `text`, `year`, `y`, optional `keyfram
 
 Keyframes chain: a beat edits its nearest ancestor's keyframe; the first one edits the captured Street View photo (uploaded once per shot). The prompt is `buildGeminiPrompt` with the beat's text as `eventHint` and the offset from today as the time hint. Regenerating a keyframe clears that beat's video. Regenerating a parent does **not** invalidate children made from the old one.
 
+## Keyframe 0
+
+**Make your story** also uploads the captured Street View photo and puts it on the canvas as **Keyframe 0** (`attachOrigin` in `lib/storyline.ts`), drawn one node to the left of the story's first beat. Every storyline hangs from it, so the first beat's keyframe is edited from this photo and its video runs photo -> first keyframe. It is locked: it cannot be dragged, edited, regenerated or deleted, and its only action is **Make video** (a clip of the street as it is). It is included in the final film like any other clip.
+
 ## Video
 
 **Make video** always runs two ComfyUI jobs:

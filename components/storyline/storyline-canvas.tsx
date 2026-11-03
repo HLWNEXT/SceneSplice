@@ -7,6 +7,7 @@ import {
   DEFAULT_PX_PER_YEAR,
   NODE_H,
   NODE_W,
+  ORIGIN_GAP,
   axisTicks,
   clampScale,
   clampYear,
@@ -90,12 +91,14 @@ export function StorylineCanvas({
       const pad = 40;
       const availW = el.clientWidth - leftInset;
       const ns = clamp((el.clientHeight - pad * 2) / (maxY - minY), 0.55, 1);
-      const ppy = clampScale((availW - pad * 2 - NODE_W * ns) / span);
-      const contentW = span * ppy + NODE_W * ns;
+      // Keyframe 0 sits one node (plus a gap) to the left of the story's first beat.
+      const extra = all.some((n) => n.origin) ? (NODE_W + ORIGIN_GAP) * ns : 0;
+      const ppy = clampScale((availW - pad * 2 - NODE_W * ns - extra) / span);
+      const contentW = span * ppy + NODE_W * ns + extra;
       setView({
         ns,
         ppy,
-        x: leftInset + (availW - contentW) / 2 + (NODE_W * ns) / 2 - minYear * ppy,
+        x: leftInset + (availW - contentW) / 2 + (NODE_W * ns) / 2 + extra - minYear * ppy,
         y: (el.clientHeight - (maxY - minY) * ns) / 2 - minY * ns,
       });
     },
@@ -173,6 +176,7 @@ export function StorylineCanvas({
   const onGripDown = (e: React.PointerEvent, id: string) => {
     if (e.button !== 0) return;
     const n = tree[id];
+    if (n.origin) return onSelect(id);
     dragRef.current = { id, cx: e.clientX, cy: e.clientY, wx: yearToX(n.year, view.ppy), wy: n.y };
     e.currentTarget.setPointerCapture(e.pointerId);
     onSelect(id);
@@ -199,6 +203,8 @@ export function StorylineCanvas({
   const keyed = nodes.filter((n) => n.keyframe);
   const nodeW = NODE_W * view.ns;
   const nodeH = NODE_H * view.ns;
+  // Keyframe 0 shares year 0 with the first beat, so it is drawn one node to the left of it.
+  const xOf = (n: StoryTree[string]) => yearToX(n.year, view.ppy) - (n.origin ? nodeW + ORIGIN_GAP * view.ns : 0);
 
   return (
     <section
@@ -231,9 +237,9 @@ export function StorylineCanvas({
               .filter((n) => n.parentId && tree[n.parentId])
               .map((n) => {
                 const p = tree[n.parentId!];
-                const x1 = yearToX(p.year, view.ppy) + nodeW / 2;
+                const x1 = xOf(p) + nodeW / 2;
                 const y1 = p.y * view.ns + nodeH / 2;
-                const x2 = yearToX(n.year, view.ppy) - nodeW / 2;
+                const x2 = xOf(n) - nodeW / 2;
                 const y2 = n.y * view.ns + nodeH / 2;
                 const c = Math.max(60, Math.abs(x2 - x1) / 2);
                 const hot = hotPath.has(n.id);
@@ -259,7 +265,7 @@ export function StorylineCanvas({
                 onPointerDown={() => onSelect(n.id)}
                 className="absolute"
                 style={{
-                  left: yearToX(n.year, view.ppy) - nodeW / 2,
+                  left: xOf(n) - nodeW / 2,
                   top: n.y * view.ns,
                   width: nodeW,
                   height: nodeH,
@@ -282,7 +288,7 @@ export function StorylineCanvas({
                     title="Drag horizontally to change when this happens"
                   >
                     <span className="plaque-label min-w-0 truncate text-[10px] text-stage-oxide">
-                      {formatOffset(offsetAt(frame, n.year))}
+                      {n.origin ? "Keyframe 0 · original" : formatOffset(offsetAt(frame, n.year))}
                       {leaf && <span className="ml-2 text-stage-dim">· end</span>}
                     </span>
                     <div className="flex shrink-0 items-center gap-1.5">
@@ -290,6 +296,7 @@ export function StorylineCanvas({
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={n.keyframe.image} alt="" className="h-4 w-7 rounded-sm border border-stage-line object-cover" title="Has a keyframe" />
                       )}
+                      {!n.origin && (
                       <button
                         type="button"
                         aria-label="Delete beat and its descendants"
@@ -299,11 +306,14 @@ export function StorylineCanvas({
                       >
                         <Trash2 size={13} />
                       </button>
+                      )}
                     </div>
                   </div>
 
                   <div className="min-h-0 flex-1 px-2.5 py-2">
-                    {editingId === n.id ? (
+                    {n.origin ? (
+                      <p className="h-full overflow-y-auto text-[13px] leading-snug text-stage-dim">{n.text}</p>
+                    ) : editingId === n.id ? (
                       <textarea
                         autoFocus
                         defaultValue={n.text}
@@ -322,6 +332,7 @@ export function StorylineCanvas({
                   </div>
 
                   {/* Edge "+" spawns a child */}
+                  {!n.origin && (
                   <button
                     type="button"
                     aria-label="Add child beat"
@@ -330,6 +341,7 @@ export function StorylineCanvas({
                   >
                     <Plus size={14} />
                   </button>
+                  )}
                   {n.parentId && (
                     <span className="pointer-events-none absolute -left-1.5 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-stage-line bg-stage" />
                   )}

@@ -39,7 +39,7 @@ import {
   storyPrompt,
   type InputKind,
 } from "../../lib/scenario";
-import { addChild, deleteSubtree, fromJson, keyframeSource, previousKeyframeNode, type StoryTree } from "../../lib/storyline";
+import { addChild, attachOrigin, deleteSubtree, fromJson, keyframeSource, previousKeyframeNode, type StoryTree } from "../../lib/storyline";
 import { formatOffset, timeHint } from "../../lib/timetravel";
 import { cleanVideoPrompt, fallbackVideoPrompt, videoPromptRequest, type VideoPromptRequest } from "../../lib/video-prompt";
 import { mergeOrder, mergeSignature } from "../../lib/merge-video";
@@ -185,7 +185,12 @@ export function ScenarioApp() {
     if (readyCount < 4 || years === null) return;
     const f = storyFrame(years);
     const { butterflyPrompt, climatePrompt } = prompts();
-    const story = await runJob("story", undefined, async (ctrl, onProgress) => {
+    const made = await runJob("story", undefined, async (ctrl, onProgress) => {
+      // Keyframe 0 is the real photo, so it goes to ComfyUI up front: every keyframe and video chains from it.
+      const capture = captureRef.current;
+      if (!capture) throw new Error("The Street View photo is gone — set the location again.");
+      if (uploadedRef.current?.fn !== capture) uploadedRef.current = { fn: capture, name: (await uploadImage(await capture())).name };
+      const photoName = uploadedRef.current.name;
       const prompt = storyPrompt({
         locationLabel: locationLabel ?? "an unnamed street",
         years,
@@ -195,10 +200,20 @@ export function ScenarioApp() {
       const clientId = crypto.randomUUID();
       const { promptId } = await queueStoryStage({ prompt, seed: Math.floor(Math.random() * 2 ** 31) }, clientId);
       promptIdRef.current = promptId;
-      return parseStory(await trackStoryStage(promptId, clientId, onProgress, ctrl.signal), f.horizon);
+      const story = parseStory(await trackStoryStage(promptId, clientId, onProgress, ctrl.signal), f.horizon);
+      return { story, photoName };
     });
-    if (!story) return;
-    setTree(fromJson(story));
+    if (!made) return;
+    const slash = made.photoName.lastIndexOf("/");
+    const file = { filename: made.photoName.slice(slash + 1), subfolder: slash < 0 ? "" : made.photoName.slice(0, slash), type: "input" };
+    const place = locationLabel?.split(",").slice(0, 2).join(",");
+    setTree(
+      attachOrigin(
+        fromJson(made.story),
+        { prompt: "", image: viewUrl(file), file, generatedAt: Date.now() },
+        place ? `The original Street View photo of ${place}.` : "The original Street View photo.",
+      ),
+    );
     setFilm(null);
     setFrame(f);
     setStale(false);
@@ -326,7 +341,8 @@ export function ScenarioApp() {
   }
 
   function removeBeat(id: string) {
-    if (tree[id]?.parentId === null && !window.confirm("Delete the first beat and the entire storyline?")) return;
+    if (tree[id]?.origin) return;
+    if (tree[tree[id]?.parentId ?? ""]?.origin && !window.confirm("Delete the first beat and the entire storyline?")) return;
     const next = deleteSubtree(tree, id);
     setTree(next);
     if (selection?.type === "beat" && !next[selection.id]) setSelection(null);
