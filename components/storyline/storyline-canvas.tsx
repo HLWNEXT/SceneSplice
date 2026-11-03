@@ -28,6 +28,7 @@ type View = { x: number; y: number; ppy: number; ns: number };
 const MIN_NS = 0.5;
 const MAX_NS = 1.6;
 const THUMB_W = 116;
+const EMPTY_BEAT_TEXT = "Untitled beat — click to describe what happens.";
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 type Props = {
@@ -306,9 +307,12 @@ export function StorylineCanvas({
                     {editingId === n.id ? (
                       <textarea
                         autoFocus
-                        defaultValue={n.text}
+                        value={n.text}
+                        // Saved as you type: clicking the canvas background unmounts this textarea
+                        // before the browser fires blur, so blur can't be the only commit point.
+                        onChange={(e) => patch(n.id, { text: e.target.value })}
                         onBlur={(e) => {
-                          patch(n.id, { text: e.target.value.trim() || n.text });
+                          if (!e.target.value.trim()) patch(n.id, { text: EMPTY_BEAT_TEXT });
                           onEditing(null);
                         }}
                         onKeyDown={(e) => e.key === "Escape" && (e.target as HTMLElement).blur()}
@@ -316,7 +320,7 @@ export function StorylineCanvas({
                       />
                     ) : (
                       <p onClick={() => onEditing(n.id)} className="h-full cursor-text overflow-y-auto text-[13px] leading-snug" title="Click to edit">
-                        {n.text}
+                        {n.text || EMPTY_BEAT_TEXT}
                       </p>
                     )}
                   </div>
