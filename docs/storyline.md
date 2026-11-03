@@ -66,6 +66,10 @@ The flf2v file is used exactly as exported from ComfyUI; `buildFlf2vWorkflow` on
 
 Settings (gear) has a **Use API models** switch. Off (default): keyframes use FLUX and videos use LTX 2.5 on the ComfyUI server. On: keyframes run `workflows/api_nano_banana_pro.json` (Nano Banana Pro edits the photo straight from the scene description, no separate prompt-writer job) and videos run `workflows/api_seedance2_5_flf2v.json` (Seedance 2.5, `API_VIDEO_SECONDS` = 5 s). With no earlier keyframe, Seedance starts on the selected keyframe and the last-frame input is dropped. The story and video-prompt steps use Gemini either way. The switch lives in the settings cookie and applies to WhatIfStreet only; Decay Studio is unchanged.
 
+## Final film
+
+Below the editor, a **Final film** panel (`components/scenario/final-film.tsx`) joins every beat that has a video into one MP4, earliest year first. `lib/merge-video.ts` builds the graph from the same steps as `workflows/utility-merge-video-*.json` (split each clip into frames/audio/fps, batch the frames, concatenate the audio, re-wrap as a video) but as a flat chain, because that file is a UI-format subgraph limited to 2 or 4 clips and ComfyUI's /prompt needs API format. Any number of clips works. Clips must share a resolution (the workflow's own requirement). The film is flagged out of date if the clips change afterwards, and cleared when the story is remade.
+
 ## Files
 
 | File | Role |

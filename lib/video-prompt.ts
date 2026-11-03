@@ -82,8 +82,8 @@ export function videoPromptRequest(r: VideoPromptRequest): string {
 export function fallbackVideoPrompt(r: VideoPromptRequest): string {
   return [
     r.beat,
-    r.climatePrompt ?? "natural ambient motion, pedestrians and traffic moving naturally",
-    "slow steady camera, no scene cuts",
+    r.climatePrompt ?? "dramatic motion, people and vehicles moving urgently, debris and light shifting",
+    "dynamic cinematic camera push-in, dramatic light and a striking moment, no scene cuts",
   ].join(" ");
 }
 

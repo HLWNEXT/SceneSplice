@@ -7,7 +7,7 @@ import type { StoryNode } from "../../lib/storyline";
 import { formatOffset } from "../../lib/timetravel";
 
 export type Selection = { type: "input"; kind: InputKind } | { type: "beat"; id: string } | null;
-export type JobState = { kind: "story" | "keyframe" | "video"; id?: string } | null;
+export type JobState = { kind: "story" | "keyframe" | "video" | "merge"; id?: string } | null;
 
 type Props = {
   selection: Selection;

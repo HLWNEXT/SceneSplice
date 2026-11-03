@@ -89,7 +89,7 @@ test("videoPromptRequest describes a single frame, and includes weather when giv
 
 test("fallbackVideoPrompt keeps the beat and always adds some motion", () => {
   assert.match(fallbackVideoPrompt(base), /Rooftop gardens spread\./);
-  assert.match(fallbackVideoPrompt(base), /ambient motion/);
+  assert.match(fallbackVideoPrompt(base), /dramatic motion/);
   assert.match(fallbackVideoPrompt({ ...base, climatePrompt: "snowfall" }), /snowfall/);
 });
 

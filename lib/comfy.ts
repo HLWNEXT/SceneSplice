@@ -9,6 +9,7 @@ import flf2vTemplate from "../workflows/ltx-2-5-flf2v.json";
 import storyTemplate from "../workflows/storyline.text.api.json";
 import videoPromptTemplate from "../workflows/videoprompt.text.api.json";
 import videoTemplate from "../workflows/whatifstreet.video.api.json";
+import { MERGE_NODE_PROGRESS, NODE_MERGE, buildMergeWorkflow } from "./merge-video";
 import { NODE_STORY, STORY_NODE_PROGRESS, buildStoryWorkflow, type StoryWorkflowParams } from "./story-workflow";
 import {
   NODE_VPROMPT,
@@ -269,6 +270,20 @@ export async function trackVideoStage(
   signal?: AbortSignal,
 ): Promise<OutputFile> {
   return trackGraph(promptId, clientId, VIDEO_NODE_PROGRESS, NODE_VIDEO.outputVideo, onProgress, signal);
+}
+
+/** POST /prompt with the clip-merging graph; `files` are LoadVideo names (see outputFileName). */
+export async function queueMergeStage(files: string[], clientId: string): Promise<{ promptId: string }> {
+  return queueGraph(buildMergeWorkflow(files) as unknown as Workflow, clientId);
+}
+
+export async function trackMergeStage(
+  promptId: string,
+  clientId: string,
+  onProgress: (e: ProgressEvent) => void,
+  signal?: AbortSignal,
+): Promise<OutputFile> {
+  return trackGraph(promptId, clientId, MERGE_NODE_PROGRESS, NODE_MERGE.output, onProgress, signal);
 }
 
 /** API-model path: Nano Banana Pro edits the keyframe. */

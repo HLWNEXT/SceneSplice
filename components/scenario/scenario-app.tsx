@@ -9,6 +9,7 @@ import {
   checkServer,
   outputFileName,
   queueApiImageStage,
+  queueMergeStage,
   queueApiVideoStage,
   queueFlf2vStage,
   queueImageStage,
@@ -16,6 +17,7 @@ import {
   queueVideoPromptStage,
   queueVideoStage,
   trackApiImageStage,
+  trackMergeStage,
   trackApiVideoStage,
   trackFlf2vStage,
   trackImageStage,
@@ -24,6 +26,7 @@ import {
   trackVideoStage,
   uploadImage,
   viewUrl,
+  type OutputFile,
   type ProgressEvent,
 } from "../../lib/comfy";
 import {
@@ -39,10 +42,12 @@ import {
 import { addChild, deleteSubtree, fromJson, keyframeSource, previousKeyframeNode, type StoryTree } from "../../lib/storyline";
 import { formatOffset, timeHint } from "../../lib/timetravel";
 import { cleanVideoPrompt, fallbackVideoPrompt, videoPromptRequest, type VideoPromptRequest } from "../../lib/video-prompt";
+import { mergeOrder, mergeSignature } from "../../lib/merge-video";
 import { API_VIDEO_SECONDS, buildGeminiPrompt } from "../../lib/whatifstreet-workflow";
 import { StorylineCanvas } from "../storyline/storyline-canvas";
 import type { StreetViewCaptureFn } from "../whatifstreet/street-view-picker";
 import { DetailPanel } from "./detail-panel";
+import { FinalFilm } from "./final-film";
 import { InputNodes } from "./input-nodes";
 import { SelectionBar, type JobState, type Selection } from "./selection-bar";
 
@@ -83,6 +88,8 @@ export function ScenarioApp() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  const [film, setFilm] = useState<{ file: OutputFile; signature: string } | null>(null);
+
   // --- one ComfyUI job at a time ---
   const [job, setJob] = useState<JobState>(null);
   const [progress, setProgress] = useState<{ percent: number; message: string } | null>(null);
@@ -119,6 +126,8 @@ export function ScenarioApp() {
     environment: climateSet ? describeClimate(climate) : null,
   };
 
+  const clips = mergeOrder(tree);
+  const clipSignature = mergeSignature(clips);
   const selectedBeat = selection?.type === "beat" ? tree[selection.id] : undefined;
 
   // Changing a starting point after a story exists leaves it on screen but flags it as out of date.
@@ -190,6 +199,7 @@ export function ScenarioApp() {
     });
     if (!story) return;
     setTree(fromJson(story));
+    setFilm(null);
     setFrame(f);
     setStale(false);
     setSelection(null);
@@ -292,6 +302,19 @@ export function ScenarioApp() {
     if (!made) return;
     patch(id, { video: made.video, videoMeta: { prompt: made.prompt, mode: request.mode } });
     if (made.refineError) setError(`Video made with a basic prompt — the prompt-writing step failed: ${made.refineError}`);
+  }
+
+  // Joins every beat's video, earliest first, into one film.
+  async function makeFilm() {
+    if (clips.length < 2) return;
+    const signature = clipSignature;
+    const made = await runJob("merge", undefined, async (ctrl, onProgress) => {
+      const clientId = crypto.randomUUID();
+      const { promptId } = await queueMergeStage(clips.map((c) => outputFileName(c.file)), clientId);
+      promptIdRef.current = promptId;
+      return trackMergeStage(promptId, clientId, onProgress, ctrl.signal);
+    });
+    if (made) setFilm({ file: made, signature });
   }
 
   function spawnChild(id: string, ppy?: number) {
@@ -412,6 +435,19 @@ export function ScenarioApp() {
           onYears={changeYears}
           onButterfly={changeButterfly}
           onClimate={changeClimate}
+        />
+      </div>
+
+      {/* 6 · Final film */}
+      <div className="mt-6">
+        <FinalFilm
+          clipCount={clips.length}
+          film={film?.file ?? null}
+          stale={!!film && film.signature !== clipSignature}
+          merging={job?.kind === "merge"}
+          busy={!!job}
+          offline={online === false}
+          onMerge={makeFilm}
         />
       </div>
     </main>
