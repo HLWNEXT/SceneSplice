@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   DEFAULT_CUSTOM_URL,
-  KEYLESS_SERVER_URL,
   SETTINGS_COOKIE,
   isKeylessServer,
   keyHint,
+  keylessServerUrl,
   normalizeUrl,
   parseSettings,
   resolveComfyTarget,
@@ -22,8 +22,8 @@ function describe(stored: StoredSettings) {
     mode: target.kind,
     apiModels: !!stored.apiModels,
     url: target.kind === "custom" ? target.baseUrl : (stored.url ?? normalizeUrl(process.env.COMFY_URL) ?? DEFAULT_CUSTOM_URL),
-    keylessUrl: KEYLESS_SERVER_URL,
-    keyWaived: target.kind === "custom" && isKeylessServer(target.baseUrl),
+    keylessUrl: keylessServerUrl(process.env) ?? "",
+    keyWaived: target.kind === "custom" && isKeylessServer(target.baseUrl, process.env),
     comfyKey: { set: !!stored.comfyKey, hint: keyHint(stored.comfyKey), fromEnv: !!process.env.COMFY_CLOUD_API_KEY },
     mapsKey: { set: !!stored.mapsKey, hint: keyHint(stored.mapsKey), fromEnv: !!resolveMapsKey({}, process.env) },
   };

@@ -44,7 +44,7 @@ A second mode alongside the existing decay simulator: pick a real street via Goo
 ## Testing
 - Unit tests (pure logic, `node:test`, fixtures): `lib/streetview.ts` URL building, `lib/timetravel.ts` slider math, `lib/whatifstreet-workflow.ts` node injection (same shape as `test/workflow.test.ts`'s "every link points at an existing node" + injection checks).
 - `/api/streetview` is tested live against the real Google API (the sandbox this plan was written in confirmed network access and that the provided key works for the Street View Static API).
-- The two new ComfyUI graphs (`whatifstreet.image.api.json`, `whatifstreet.video.api.json`) **cannot be live-tested from the environment this plan was written in** — the ComfyUI server (`172.16.34.152:8188`) is only reachable from the user's own network. Each graph gets a structural unit test (dangling-link check) plus an explicit manual checkpoint for the user to run (`npm run dev`, queue a real prompt) before the next task starts.
+- The two new ComfyUI graphs (`whatifstreet.image.api.json`, `whatifstreet.video.api.json`) **cannot be live-tested from the environment this plan was written in** — the ComfyUI server (`<your-comfyui-host>:8188`) is only reachable from the user's own network. Each graph gets a structural unit test (dangling-link check) plus an explicit manual checkpoint for the user to run (`npm run dev`, queue a real prompt) before the next task starts.
 
 ## Out of scope
 Real historical Street View imagery (Map Tiles API), free-roam 3D orbit for street view framing, a dedicated route/URL for this mode, editing/approving the Gemini-produced prompt text before it reaches FLUX.

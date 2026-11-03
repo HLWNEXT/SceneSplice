@@ -88,7 +88,7 @@ export function SettingsDialog({ onClose, onSaved }: { onClose: () => void; onSa
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const keyWaived = mode === "custom" && !!loaded && sameUrl(url, loaded.keylessUrl);
+  const keyWaived = mode === "custom" && !!loaded && !!loaded.keylessUrl && sameUrl(url, loaded.keylessUrl);
 
   async function save() {
     setBusy(true);

@@ -9,3 +9,6 @@ scripts/.test-*
 AGENTS.md
 CLAUDE.md
 higgsfield-apps-reference.png
+
+# Local Claude Code permissions (contain local paths and repo names)
+.claude/settings.json

@@ -17,7 +17,7 @@
   },
   "19": {
     "inputs": {
-      "image": "5fe5fb08-4dce-47e3-b231-8e1fa2d479e0__Rendering__2_.png"
+      "image": "input.png"
     },
     "class_type": "LoadImage",
     "_meta": {

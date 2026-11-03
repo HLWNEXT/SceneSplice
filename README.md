@@ -65,6 +65,7 @@ Everything below can also be set in the app (gear icon, top right), which overri
 | --- | --- |
 | `COMFY_URL` | Your ComfyUI server, e.g. `http://127.0.0.1:8188`. The app proxies it at `/comfy`, so the browser needs no CORS access. |
 | `COMFY_CLOUD_API_KEY` | Optional. Used when "Comfy Cloud" is selected and no key was entered in Settings. |
+| `COMFY_KEYLESS_URL` | Optional. A ComfyUI server whose backend already has the Comfy API key. No key is sent to it and Settings does not ask for one. |
 | `GOOGLE_MAPS_API_KEY` | Street View for WhatIfStreet. Server-side only. |
 | `NEXT_PUBLIC_COMFY_WS_URL` | Optional direct WebSocket (e.g. `ws://host:8188/ws`) for live step progress. Without it the UI polls and shows elapsed time. |
 

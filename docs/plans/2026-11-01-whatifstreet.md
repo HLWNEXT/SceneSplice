@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js, node:test, ComfyUI (custom `GeminiNode`, FLUX Kontext, LTX-2.5).
 
-**Constraint:** the ComfyUI server (`172.16.34.152:8188`) is on the user's own network and is not reachable from the environment these tasks are being implemented in. Tasks 3 and 4 (the two ComfyUI graphs) cannot be live-tested by the agent — each has a manual checkpoint for the user to run (`npm run dev`, queue a real prompt against their own server) before the next task starts. Everything else (Street View API, pure logic) is live-tested directly since that network is reachable.
+**Constraint:** the ComfyUI server (`<your-comfyui-host>:8188`) is on the user's own network and is not reachable from the environment these tasks are being implemented in. Tasks 3 and 4 (the two ComfyUI graphs) cannot be live-tested by the agent — each has a manual checkpoint for the user to run (`npm run dev`, queue a real prompt against their own server) before the next task starts. Everything else (Street View API, pure logic) is live-tested directly since that network is reachable.
 
 ---
 

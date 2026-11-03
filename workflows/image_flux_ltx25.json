@@ -17,7 +17,7 @@
   },
   "395": {
     "inputs": {
-      "image": "congestion view_2.png"
+      "image": "input.png"
     },
     "class_type": "LoadImage",
     "_meta": {

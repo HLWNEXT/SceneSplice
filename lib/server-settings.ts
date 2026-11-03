@@ -3,11 +3,6 @@
 // Pure logic only — the cookie/route plumbing lives in app/api/settings and app/comfy.
 
 export const CLOUD_URL = "https://cloud.comfy.org";
-/**
- * The team's LAN ComfyUI server. Its backend already holds the Comfy API key (for Gemini and other
- * partner nodes), so no key is ever sent to it.
- */
-export const KEYLESS_SERVER_URL = "http://172.16.34.152:8188";
 export const DEFAULT_CUSTOM_URL = "http://127.0.0.1:8188";
 export const SETTINGS_COOKIE = "decayui_settings";
 
@@ -39,8 +34,17 @@ export function normalizeUrl(raw: string | undefined | null): string | null {
   return `${u.origin}${u.pathname}`.replace(/\/+$/, "");
 }
 
-export function isKeylessServer(url: string | undefined | null): boolean {
-  return normalizeUrl(url) === KEYLESS_SERVER_URL;
+/**
+ * The ComfyUI server whose backend already holds the Comfy API key (for Gemini and other partner nodes),
+ * set with COMFY_KEYLESS_URL. No key is ever sent to it. Null when none is configured.
+ */
+export function keylessServerUrl(env: Env): string | null {
+  return normalizeUrl(env.COMFY_KEYLESS_URL);
+}
+
+export function isKeylessServer(url: string | undefined | null, env: Env): boolean {
+  const keyless = keylessServerUrl(env);
+  return !!keyless && normalizeUrl(url) === keyless;
 }
 
 const clean = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
@@ -77,7 +81,7 @@ export function resolveComfyTarget(s: StoredSettings, env: Env): ComfyTarget {
   const baseUrl = s.url ?? normalizeUrl(env.COMFY_URL) ?? DEFAULT_CUSTOM_URL;
   // A custom server isn't Comfy Cloud, so the key is never sent as X-API-Key — only offered to the
   // partner nodes. The known LAN server has its own, so nothing is sent there at all.
-  const partnerKey = isKeylessServer(baseUrl) ? undefined : (s.comfyKey ?? clean(env.COMFY_CLOUD_API_KEY));
+  const partnerKey = isKeylessServer(baseUrl, env) ? undefined : (s.comfyKey ?? clean(env.COMFY_CLOUD_API_KEY));
   return { kind: "custom", baseUrl, apiPrefix: "", partnerKey };
 }
 

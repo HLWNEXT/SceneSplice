@@ -43,7 +43,7 @@
   },
   "40": {
     "inputs": {
-      "image": "03 1.PNG"
+      "image": "last_frame.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -52,7 +52,7 @@
   },
   "41": {
     "inputs": {
-      "image": "+WELLNESS RENDER_RECEPTION.png"
+      "image": "first_frame.png"
     },
     "class_type": "LoadImage",
     "_meta": {
