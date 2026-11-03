@@ -1,6 +1,8 @@
 // Storyline model: a tree of story beats. A beat's X position on the canvas is a pure function of
-// its `year`, so dragging horizontally edits time. The log scale gives each decade equal width
-// (same spirit as lib/decay.ts), which is what makes Year 10 / 100 / 10,000 sit on one axis.
+// its `year` and the current time scale (pixels per year), so dragging horizontally edits time.
+// The time scale is independent of node size: zooming the timeline spreads beats apart without
+// resizing them, and resizing nodes never changes the time span. `year` may be fractional
+// (snapped to whole months or coarser), so beats can sit closer together than a year.
 
 // Structural match for comfy.ts's OutputFile (kept local so this module stays free of JSON imports).
 export type ComfyFile = { filename: string; subfolder: string; type: string };
@@ -29,23 +31,89 @@ export type StoryJson = { text: string; year: number; children?: StoryJson[] };
 export const NODE_W = 230;
 export const NODE_H = 158;
 export const ROW_H = NODE_H + 36;
-export const PX_PER_DECADE = 520;
 export const MAX_YEAR = 100_000;
 
-export const AXIS_TICKS: readonly number[] = [0, 1, 10, 100, 1_000, 10_000, 100_000];
+/** Time scale: horizontal pixels per year. Independent of node size. */
+export const MIN_PX_PER_YEAR = 0.2;
+export const MAX_PX_PER_YEAR = 6000;
+export const DEFAULT_PX_PER_YEAR = 80;
+export const clampScale = (ppy: number) => Math.min(MAX_PX_PER_YEAR, Math.max(MIN_PX_PER_YEAR, ppy));
 
-export const yearToX = (year: number) => Math.log10(1 + Math.max(0, year)) * PX_PER_DECADE;
-export const xToYear = (x: number) => 10 ** (Math.max(0, x) / PX_PER_DECADE) - 1;
+export const yearToX = (year: number, ppy: number) => Math.max(0, year) * ppy;
+export const xToYear = (x: number, ppy: number) => Math.max(0, x) / ppy;
 
-// Round to 2 significant figures so dragged values read as "340" not "338.17".
-export function roundYear(year: number): number {
-  if (year < 10) return Math.max(0, Math.round(year));
-  const mag = 10 ** (Math.floor(Math.log10(year)) - 1);
-  return Math.min(MAX_YEAR, Math.round(year / mag) * mag);
+// [major step, minor step] in years. The axis picks the smallest major step that leaves room for a label.
+const TICK_STEPS: readonly (readonly [number, number | null])[] = [
+  [1 / 12, null],
+  [1 / 4, 1 / 12],
+  [1 / 2, 1 / 12],
+  [1, 1 / 12],
+  [2, 1],
+  [5, 1],
+  [10, 2],
+  [20, 5],
+  [50, 10],
+  [100, 20],
+  [200, 50],
+  [500, 100],
+  [1_000, 200],
+  [2_000, 500],
+  [5_000, 1_000],
+  [10_000, 2_000],
+  [20_000, 5_000],
+  [50_000, 10_000],
+  [100_000, 20_000],
+];
+const MIN_LABEL_PX = 96;
+const MIN_MINOR_PX = 10;
+const SNAP_PX = 12;
+
+/** Major/minor tick years covering [from, to] for the given time scale. */
+export function axisTicks(ppy: number, from: number, to: number): { major: number[]; minor: number[] } {
+  const [step, minorStep] = TICK_STEPS.find(([s]) => s * ppy >= MIN_LABEL_PX) ?? TICK_STEPS[TICK_STEPS.length - 1];
+  const gen = (s: number) => {
+    const out: number[] = [];
+    for (let i = Math.max(0, Math.ceil(from / s - 1e-9)); i * s <= to && out.length < 600; i++) out.push(i * s);
+    return out;
+  };
+  const isMajor = (t: number) => Math.abs(t / step - Math.round(t / step)) < 1e-6;
+  return {
+    major: gen(step),
+    minor: minorStep && minorStep * ppy >= MIN_MINOR_PX ? gen(minorStep).filter((t) => !isMajor(t)) : [],
+  };
 }
 
+// Dragging snaps to the finest grid step that is at least SNAP_PX wide, so zooming in unlocks finer
+// time (quarters, then months). Without a scale it snaps to whole months.
+export function snapStep(ppy?: number): number {
+  if (!ppy) return 1 / 12;
+  const steps = TICK_STEPS.flatMap(([s, m]) => (m ? [m, s] : [s]));
+  return steps.find((s) => s * ppy >= SNAP_PX) ?? 100_000;
+}
+
+export function roundYear(year: number, ppy?: number): number {
+  const step = snapStep(ppy);
+  return Math.min(MAX_YEAR, Math.max(0, Math.round(year / step) * step));
+}
+
+const monthsOf = (years: number) => Math.round(years * 12);
+
+/** "Year 8", "Month 6", "Year 1, month 3". */
 export function formatYear(year: number): string {
-  return `Year ${year.toLocaleString("en-US")}`;
+  const months = monthsOf(year);
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  if (m === 0) return `Year ${y.toLocaleString("en-US")}`;
+  return y === 0 ? `Month ${m}` : `Year ${y.toLocaleString("en-US")}, month ${m}`;
+}
+
+/** Compact axis label: "0", "3 mo", "1 yr", "1 yr 6 mo", "1,000 yr". */
+export function tickLabel(year: number): string {
+  const months = monthsOf(year);
+  if (months === 0) return "0";
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  return [y ? `${y.toLocaleString("en-US")} yr` : "", m ? `${m} mo` : ""].filter(Boolean).join(" ");
 }
 
 export const childrenOf = (tree: StoryTree, id: string | null): StoryNode[] =>
@@ -86,32 +154,32 @@ export function deleteSubtree(tree: StoryTree, id: string): StoryTree {
 }
 
 // A beat may not happen before its parent or after any child.
-export function clampYear(tree: StoryTree, id: string, year: number): number {
+export function clampYear(tree: StoryTree, id: string, year: number, ppy?: number): number {
   const node = tree[id];
   const lo = node?.parentId ? (tree[node.parentId]?.year ?? 0) : 0;
   const kids = childrenOf(tree, id);
   const hi = kids.length ? Math.min(...kids.map((k) => k.year)) : MAX_YEAR;
-  return Math.min(hi, Math.max(lo, roundYear(year)));
+  return Math.min(hi, Math.max(lo, roundYear(year, ppy)));
 }
 
 let seq = 0;
 export const newId = () => `n${Date.now().toString(36)}${(seq++).toString(36)}`;
 
-// New child sits one decade-ish later and below any existing siblings.
-export function addChild(tree: StoryTree, parentId: string): { tree: StoryTree; id: string } {
+// New child sits a year after its parent and below any existing siblings. `ppy` is only used to
+// judge on-screen overlap when picking a free row.
+export function addChild(
+  tree: StoryTree,
+  parentId: string,
+  ppy = DEFAULT_PX_PER_YEAR,
+): { tree: StoryTree; id: string } {
   const parent = tree[parentId];
   const kids = childrenOf(tree, parentId);
-  const nextTick = AXIS_TICKS.find((t) => t > parent.year) ?? MAX_YEAR;
-  const year = Math.min(
-    nextTick,
-    roundYear(Math.max(parent.year * 3, parent.year + 5)),
-  );
-  const childYear = Math.min(MAX_YEAR, Math.max(year, parent.year));
+  const childYear = Math.min(MAX_YEAR, parent.year + 1);
   const lowest = kids.length ? Math.max(...kids.map((k) => k.y)) + ROW_H : parent.y;
   // Walk down in whole rows until no existing beat overlaps the new one on screen.
   const taken = (y: number) =>
     Object.values(tree).some(
-      (n) => Math.abs(yearToX(n.year) - yearToX(childYear)) < NODE_W + 12 && Math.abs(n.y - y) < ROW_H - 1,
+      (n) => Math.abs(yearToX(n.year, ppy) - yearToX(childYear, ppy)) < NODE_W + 12 && Math.abs(n.y - y) < ROW_H - 1,
     );
   let y = lowest;
   while (taken(y)) y += ROW_H;

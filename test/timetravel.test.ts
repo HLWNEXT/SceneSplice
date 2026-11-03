@@ -50,3 +50,11 @@ test("formatOffset and timeHint read naturally on both sides of Today", () => {
   assert.match(timeHint(-150), /150 years in the past/);
   assert.match(timeHint(0), /present day/);
 });
+
+test("offsets below a year read in months", () => {
+  assert.equal(formatOffset(0.5), "6 MO AHEAD");
+  assert.equal(formatOffset(-1.25), "1 YR 3 MO AGO");
+  assert.equal(formatOffset(0.01), "TODAY");
+  assert.match(timeHint(2.5), /2 years and 6 months in the future/);
+  assert.match(timeHint(-0.25), /3 months in the past/);
+});
