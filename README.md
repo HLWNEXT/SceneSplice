@@ -13,6 +13,10 @@ Ruin a building, or ask "what if?" about a real street and watch a branching sto
 
 </div>
 
+![The WhatIfStreet storyline canvas: four starting points, Keyframe 0 and the first story beats](docs/screenshot-storyline.jpg)
+
+![The final film panel playing the combined clips](docs/screenshot-final-film.jpg)
+
 ---
 
 ## What it does
