@@ -34,7 +34,17 @@ Pick a real street, a moment in the past or future, a world-changing event (a "b
 
 - Draggable, zoomable **storyline canvas**: a beat's horizontal position is *when* it happens.
 - Beats are edited from the street's Street View photo, chained one after another.
+- Link beats by dragging between them, or insert a beat on a link to splice it in.
+- The **butterfly effect** button on a beat rewrites only what comes after it; earlier beats stay put.
 - Clips can be joined into a single **final film**.
+
+### Walkthrough
+Upload several interior drawings, one per scene, and turn them into one camera walk through the space.
+
+- Scenes live on the same **storyline canvas** as WhatIfStreet: add, drag, link, insert and branch them, and see every frame in the strip below.
+- Each scene is a **white-box view** (rendered from your prompt and reference images with Nano Banana Pro) or an already **rendered view** (used as is).
+- **In-between** scenes are generated from the scenes on either side of them.
+- A first-frame / last-frame video joins each pair of scenes, and the clips along the selected route combine into one film. See [docs/walkthrough.md](docs/walkthrough.md).
 
 ```mermaid
 flowchart LR

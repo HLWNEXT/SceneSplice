@@ -14,6 +14,7 @@ import {
   queueApiVideoStage,
   queueFlf2vStage,
   queueImageStage,
+  queueRippleStage,
   queueStoryStage,
   queueVideoPromptStage,
   queueVideoStage,
@@ -35,12 +36,25 @@ import {
   describeButterfly,
   describeClimate,
   offsetAt,
+  parseRipple,
   parseStory,
+  ripplePrompt,
   storyFrame,
   storyPrompt,
   type InputKind,
 } from "../../lib/scenario";
-import { addChild, attachOrigin, deleteSubtree, fromJson, keyframeSource, previousKeyframeNode, type StoryTree } from "../../lib/storyline";
+import {
+  addChild,
+  attachOrigin,
+  deleteSubtree,
+  descendantIds,
+  fromJson,
+  keyframeSource,
+  previousKeyframeNode,
+  replaceDescendants,
+  toOutline,
+  type StoryTree,
+} from "../../lib/storyline";
 import { formatOffset, timeHint } from "../../lib/timetravel";
 import { cleanVideoPrompt, fallbackVideoPrompt, videoPromptRequest, type VideoPromptRequest } from "../../lib/video-prompt";
 import { mergeOrder, mergeSignature } from "../../lib/merge-video";
@@ -226,6 +240,35 @@ export function ScenarioApp() {
     setPanelOpen(false);
     setEditingId(null);
     setFitKey((k) => k + 1);
+  }
+
+  // Butterfly effect: the LLM gets the current storyline (with this beat's latest text) and rewrites only what
+  // comes after it. This beat, everything before it and every other branch are left untouched.
+  async function makeRipple(id: string) {
+    const node = tree[id];
+    if (!node || node.origin || years === null) return;
+    const outline = toOutline(tree, id);
+    if (!outline) return;
+    const later = descendantIds(tree, id).filter((d) => d !== id);
+    const media = later.filter((d) => tree[d].keyframe || tree[d].video).length;
+    if (media && !window.confirm(`The butterfly effect replaces ${later.length} later beat${later.length === 1 ? "" : "s"}, including ${media} with generated images or videos. Continue?`)) return;
+    setEditingId(null);
+    const { butterflyPrompt, climatePrompt } = prompts();
+    const kids = await runJob("ripple", id, async (ctrl, onProgress) => {
+      const prompt = ripplePrompt({
+        locationLabel: locationLabel ?? "an unnamed street",
+        years,
+        butterflyPrompt: butterflyPrompt ?? "",
+        climatePrompt,
+        outline,
+      });
+      const clientId = crypto.randomUUID();
+      const { promptId } = await queueRippleStage({ prompt, seed: Math.floor(Math.random() * 2 ** 31) }, clientId);
+      promptIdRef.current = promptId;
+      return parseRipple(await trackStoryStage(promptId, clientId, onProgress, ctrl.signal), node.year, frame.horizon);
+    });
+    if (!kids) return;
+    setTree((t) => replaceDescendants(t, id, kids));
   }
 
   const patch = (id: string, p: Partial<StoryTree[string]>) => setTree((t) => (t[id] ? { ...t, [id]: { ...t[id], ...p } } : t));
@@ -467,6 +510,9 @@ export function ScenarioApp() {
         onEditing={setEditingId}
         onAddChild={spawnChild}
         onDelete={removeBeat}
+        onRipple={makeRipple}
+        rippleId={job?.kind === "ripple" ? (job.id ?? null) : null}
+        busy={!!job || online === false}
         frame={frame}
         fitKey={fitKey}
         leftInset={hasStory ? 176 : 0}
@@ -496,6 +542,7 @@ export function ScenarioApp() {
           videoFromPrevious={!!selectedBeat && !!previousKeyframeNode(tree, selectedBeat.id)}
           onMakeVideo={() => selection?.type === "beat" && makeVideo(selection.id)}
           onAddChild={() => selection?.type === "beat" && spawnChild(selection.id)}
+          onRipple={() => selection?.type === "beat" && makeRipple(selection.id)}
           onDelete={() => selection?.type === "beat" && removeBeat(selection.id)}
         />
       </div>

@@ -5,8 +5,9 @@ import { useState } from "react";
 import { SettingsDialog } from "./settings-dialog";
 import { Studio } from "./studio";
 import { ScenarioApp } from "./scenario/scenario-app";
+import { WalkthroughApp } from "./walkthrough/walkthrough-app";
 
-type Mode = "decay" | "whatifstreet";
+type Mode = "decay" | "whatifstreet" | "walkthrough";
 
 export function AppShell() {
   const [mode, setMode] = useState<Mode>("decay");
@@ -29,6 +30,7 @@ export function AppShell() {
         {([
           ["decay", "Decay Studio"],
           ["whatifstreet", "WhatIfStreet"],
+          ["walkthrough", "Walkthrough"],
         ] as const).map(([id, label]) => (
           <button
             key={id}
@@ -54,7 +56,7 @@ export function AppShell() {
         </button>
       </nav>
       <div key={serverEpoch} className="contents">
-        {mode === "decay" ? <Studio /> : <ScenarioApp />}
+        {mode === "decay" ? <Studio /> : mode === "whatifstreet" ? <ScenarioApp /> : <WalkthroughApp />}
       </div>
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} onSaved={() => setServerEpoch((n) => n + 1)} />}
     </>

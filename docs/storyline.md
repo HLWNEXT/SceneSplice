@@ -34,6 +34,10 @@ The canvas timeline is linear and only runs forward from Year 0 (see `lib/storyl
 
 Beat headers show the offset from today (`50 YR AGO`); the axis shows time since the start, with a caption saying what Year 0 means.
 
+### Full screen
+
+The **Full screen** button (top right of the board, on both the WhatIfStreet and Walkthrough tabs) puts the whole board in the browser's full screen; Esc or **Exit full screen** leaves it, and the view is re-fitted to the new size. Only the board is shown, so the status bar and detail panel aren't visible until you exit; nodes keep their own edit, add, link and delete controls.
+
 ### Time scale vs node size
 
 The canvas has two independent zooms:
@@ -46,6 +50,12 @@ The canvas has two independent zooms:
 ## Data model
 
 A tree of beats (`StoryNode`: `parentId`, `text`, `year`, `y`, optional `keyframe` and `video`). X position is a pure function of `year` and the time scale, so dragging a beat horizontally edits time; a beat is clamped between its parent and earliest child. See `lib/storyline.ts`. No graph library is used.
+
+## Editing the story: connect, insert, butterfly effect
+
+- **Connect.** Every beat except keyframe 0 has a small link handle on its right edge (below the **+**). Drag it onto a *later* beat to make the first the second's cause. A beat has one cause, so the target's old link is replaced. Valid targets get a dashed outline while you drag; earlier beats, keyframe 0 and anything that would form a loop are refused (`canConnect` / `connect`).
+- **Insert.** The small **+** on the middle of a link drops a new beat there, joined to both ends (parent -> new beat -> child), halfway in time (`insertOnEdge`). The link out of keyframe 0 can't be split. The **+** on a beat's edge still adds a new branch.
+- **Butterfly effect.** The butterfly icon on a beat (and **Butterfly effect** in the status bar) rewrites what comes after it. The whole current storyline, with that beat's latest text flagged `"changed": true`, goes to `workflows/storyline.ripple.text.api.json` (same Gemini graph as the story writer, with an editor system prompt). The reply is that beat plus new children; `parseRipple` clamps the years and `replaceDescendants` swaps only the beat's *descendants*. The beat itself, everything before it and every other branch stay exactly as they were. The old descendants' keyframes and videos go with them (asks first), and the final film is flagged out of date. Run it after editing a beat's text, or on a leaf to extend the story.
 
 ## Keyframes
 
@@ -90,7 +100,8 @@ Below the editor, a **Final film** panel (`components/scenario/final-film.tsx`) 
 | `workflows/videoprompt.text.api.json` | Gemini video-prompt writer (sees the keyframe(s)) |
 | `workflows/ltx-2-5-flf2v.json` | LTX 2.5 first/last-frame video (API format, used as exported) |
 | `workflows/storyline.text.api.json` | Story-writing Gemini prompt (asks for strict JSON, 7-11 beats, 1-2 branches) |
-| `test/scenario.test.ts`, `test/storyline.test.ts` | Unit tests |
+| `workflows/storyline.ripple.text.api.json` | Butterfly-effect Gemini prompt (rewrites only what follows the changed beat) |
+| `test/scenario.test.ts`, `test/storyline.test.ts`, `test/story-edit.test.ts` | Unit tests |
 
 ## Known limitations
 

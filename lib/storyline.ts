@@ -179,21 +179,52 @@ export function addChild(
   const childYear = Math.min(MAX_YEAR, parent.year + 1);
   const lowest = kids.length ? Math.max(...kids.map((k) => k.y)) + ROW_H : parent.y;
   // Walk down in whole rows until no existing beat overlaps the new one on screen.
-  const taken = (y: number) =>
-    Object.values(tree).some(
-      (n) => Math.abs(yearToX(n.year, ppy) - yearToX(childYear, ppy)) < NODE_W + 12 && Math.abs(n.y - y) < ROW_H - 1,
-    );
   let y = lowest;
-  while (taken(y)) y += ROW_H;
+  while (overlaps(tree, childYear, y, ppy)) y += ROW_H;
   const id = newId();
   const node: StoryNode = {
     id,
     parentId,
-    text: "New story beat — describe what happens here.",
+    text: NEW_BEAT_TEXT,
     year: childYear,
     y,
   };
   return { tree: { ...tree, [id]: node }, id };
+}
+
+export const NEW_BEAT_TEXT = "New story beat — describe what happens here.";
+
+// True when a beat at (year, y) would sit on top of an existing one at the given time scale.
+const overlaps = (tree: StoryTree, year: number, y: number, ppy: number, ignore: readonly string[] = []) =>
+  Object.values(tree).some(
+    (n) => !ignore.includes(n.id) && Math.abs(yearToX(n.year, ppy) - yearToX(year, ppy)) < NODE_W + 12 && Math.abs(n.y - y) < ROW_H - 1,
+  );
+
+/** Whether `from` can become the parent of `to`: `to` must be a later beat and the link must not loop. */
+export function canConnect(tree: StoryTree, from: string, to: string): boolean {
+  const a = tree[from];
+  const b = tree[to];
+  if (!a || !b || from === to || b.origin) return false;
+  if (b.year < a.year || b.parentId === from) return false;
+  return !descendantIds(tree, to).includes(from);
+}
+
+/** Re-parents `to` under `from` (a beat has one cause, so its previous link is replaced). */
+export function connect(tree: StoryTree, from: string, to: string): StoryTree {
+  return canConnect(tree, from, to) ? { ...tree, [to]: { ...tree[to], parentId: from } } : tree;
+}
+
+/** Drops a new beat onto the link into `childId`, so parent -> new beat -> child. Null when there is no such link to split. */
+export function insertOnEdge(tree: StoryTree, childId: string, ppy = DEFAULT_PX_PER_YEAR): { tree: StoryTree; id: string } | null {
+  const child = tree[childId];
+  const parent = child?.parentId ? tree[child.parentId] : undefined;
+  if (!child || !parent || parent.origin) return null;
+  const year = Math.min(child.year, Math.max(parent.year, roundYear((parent.year + child.year) / 2, ppy)));
+  let y = (parent.y + child.y) / 2;
+  while (overlaps(tree, year, y, ppy)) y += ROW_H;
+  const id = newId();
+  const node: StoryNode = { id, parentId: parent.id, text: NEW_BEAT_TEXT, year, y };
+  return { tree: { ...tree, [id]: node, [childId]: { ...child, parentId: id } }, id };
 }
 
 // Nested JSON -> flat tree with auto layout: leaves take consecutive rows, parents center on children.
@@ -237,6 +268,56 @@ export function toJson(tree: StoryTree, id?: string): StoryJson | null {
     return { text: n.text, year: n.year, ...(kids.length ? { children: kids } : {}) };
   };
   return build(rootNode);
+}
+
+/** The story as the LLM sees it when a butterfly effect runs: the beat that was edited is flagged `changed`. */
+export type StoryOutline = { text: string; year: number; changed?: true; children?: StoryOutline[] };
+
+/** The first real beat of the story (the one keyframe 0 leads into). */
+export function storyRoot(tree: StoryTree): StoryNode | undefined {
+  const top = Object.values(tree).find((n) => n.parentId === null);
+  return top?.origin ? childrenOf(tree, top.id)[0] : top;
+}
+
+export function toOutline(tree: StoryTree, changedId: string): StoryOutline | null {
+  const root = storyRoot(tree);
+  if (!root) return null;
+  const build = (n: StoryNode): StoryOutline => {
+    const kids = childrenOf(tree, n.id).map(build);
+    return { text: n.text, year: n.year, ...(n.id === changedId ? { changed: true as const } : {}), ...(kids.length ? { children: kids } : {}) };
+  };
+  return build(root);
+}
+
+/**
+ * Butterfly effect, applied: swaps everything after beat `id` for `kids`. The beat itself, everything
+ * before it and every other branch stay exactly as they are. The new beats take the old ones' place on
+ * the canvas, moving down only to clear other branches.
+ */
+export function replaceDescendants(tree: StoryTree, id: string, kids: StoryJson[]): StoryTree {
+  const parent = tree[id];
+  if (!parent) return tree;
+  const old = descendantIds(tree, id).filter((d) => d !== id);
+  const top = old.length ? Math.min(...old.map((d) => tree[d].y)) : parent.y;
+  let next = tree;
+  for (const c of childrenOf(tree, id)) next = deleteSubtree(next, c.id);
+
+  const group: StoryTree = {};
+  let row = 0;
+  const walk = (j: StoryJson, parentId: string): number => {
+    const nid = newId();
+    const ys = (j.children ?? []).map((c) => walk(c, nid));
+    const y = ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : row++ * ROW_H;
+    group[nid] = { id: nid, parentId, text: j.text, year: Math.max(parent.year, roundYear(j.year)), y };
+    return y;
+  };
+  kids.forEach((k) => walk(k, id));
+
+  let dy = top;
+  const clashes = () =>
+    Object.values(group).some((g) => overlaps(next, g.year, g.y + dy, DEFAULT_PX_PER_YEAR, [id]));
+  while (clashes()) dy += ROW_H;
+  return { ...next, ...Object.fromEntries(Object.values(group).map((g) => [g.id, { ...g, y: g.y + dy }])) };
 }
 
 export function buildPrompt(tree: StoryTree, id: string, subject: string): string {

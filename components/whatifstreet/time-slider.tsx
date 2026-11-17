@@ -19,7 +19,7 @@ export function TimeSlider({ years, disabled, onChange }: Props) {
       <div className="flex items-end justify-between">
         <div>
           <div className="plaque-label text-xs text-dim">Time offset</div>
-          <div className="font-display text-4xl font-semibold tabular-nums tracking-tight text-ink">{formatOffset(years)}</div>
+          <div className="font-display text-xl font-semibold tabular-nums tracking-tight text-ink">{formatOffset(years)}</div>
         </div>
         <div className="max-w-[50%] text-right font-serif text-xs leading-snug text-dim">
           <span className="text-accent">{stage.label}</span> · {stage.summary}
