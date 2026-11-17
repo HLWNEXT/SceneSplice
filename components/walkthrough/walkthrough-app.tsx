@@ -38,6 +38,7 @@ import {
   inbetweenPrompt,
   newWalkthrough,
   nextScene,
+  promptDraft,
   promptOf,
   pruneScenes,
   renderPrompt,
@@ -472,7 +473,7 @@ export function WalkthroughApp() {
             label={sceneLabel(tree, scenes, sel.id)}
             order={path.findIndex((n) => n.id === sel.id) + 1 || 1}
             scene={selScene}
-            prompt={promptOf(sel)}
+            prompt={promptDraft(sel)}
             blocker={selScene.mode === "rendered" ? null : sceneBlocker(tree, scenes, sel.id)}
             videoBlocker={sel.parentId ? videoBlocker(tree, scenes, sel.id) : undefined}
             videoStale={videoStale(tree, scenes, sel.id)}

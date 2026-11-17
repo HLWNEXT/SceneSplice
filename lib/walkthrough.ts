@@ -47,8 +47,14 @@ export function newWalkthrough(): StoryTree {
 
 /** The scene's prompt: its node text, minus the placeholders the canvas puts in new or emptied nodes. */
 export function promptOf(node: StoryNode | undefined): string {
-  const t = node?.text.trim() ?? "";
-  return t === NEW_BEAT_TEXT || t === EMPTY_SCENE_TEXT || t.startsWith("Untitled beat") ? "" : t;
+  return promptDraft(node).trim();
+}
+
+/** Same as promptOf but untrimmed, for the text box: trimming while typing would swallow every space the user types. */
+export function promptDraft(node: StoryNode | undefined): string {
+  const text = node?.text ?? "";
+  const t = text.trim();
+  return t === NEW_BEAT_TEXT || t === EMPTY_SCENE_TEXT || t.startsWith("Untitled beat") ? "" : text;
 }
 
 /** Name shown for a scene: its own, or "Scene 3" by depth along its route. */
