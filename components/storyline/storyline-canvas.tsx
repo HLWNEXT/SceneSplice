@@ -1,17 +1,21 @@
 "use client";
 
-import { Maximize, Plus, Trash2 } from "lucide-react";
+import { Expand, LoaderCircle, Maximize, Plus, Shrink, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { frameCaption, offsetAt, type StoryFrame } from "../../lib/scenario";
+import { ButterflyIcon } from "./butterfly-icon";
 import {
   DEFAULT_PX_PER_YEAR,
   NODE_H,
   NODE_W,
   ORIGIN_GAP,
   axisTicks,
+  canConnect,
   clampScale,
   clampYear,
+  connect,
   formatYear,
+  insertOnEdge,
   isLeaf,
   pathToRoot,
   tickLabel,
@@ -32,7 +36,25 @@ const THUMB_W = 116;
 const EMPTY_BEAT_TEXT = "Untitled beat — click to describe what happens.";
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
+/** Wording and features that differ between the street storyline (the defaults) and other users of the canvas, such as the walkthrough. */
+export type CanvasLabels = {
+  /** Header of a node. */
+  node?: (n: StoryTree[string]) => string;
+  /** Axis tick, and the time shown for a node, for a position on the timeline. */
+  tick?: (t: number) => string;
+  time?: (t: number) => string;
+  /** Caption in the corner; null hides it. */
+  caption?: string | null;
+  /** Text of a node that has none. */
+  emptyText?: string;
+  /** Shown in the frame strip when it is empty. */
+  emptyStrip?: string;
+  /** Whether nodes have the butterfly-effect button. Default true. */
+  ripple?: boolean;
+};
+
 type Props = {
+  labels?: CanvasLabels;
   tree: StoryTree;
   setTree: Dispatch<SetStateAction<StoryTree>>;
   /** Beat selection. null clears every selection, including an input node's. */
@@ -42,6 +64,11 @@ type Props = {
   onEditing: (id: string | null) => void;
   onAddChild: (id: string, ppy: number) => void;
   onDelete: (id: string) => void;
+  /** Butterfly effect: rewrite everything after this beat. */
+  onRipple: (id: string) => void;
+  /** The beat whose butterfly effect is running, and whether any job is running (it blocks starting another). */
+  rippleId: string | null;
+  busy: boolean;
   frame: StoryFrame;
   /** Bump to re-frame the whole tree (after a new story is made). */
   fitKey: number;
@@ -52,6 +79,7 @@ type Props = {
 };
 
 export function StorylineCanvas({
+  labels,
   tree,
   setTree,
   selectedId,
@@ -60,15 +88,25 @@ export function StorylineCanvas({
   onEditing,
   onAddChild,
   onDelete,
+  onRipple,
+  rippleId,
+  busy,
   frame,
   fitKey,
   leftInset,
   inputs,
 }: Props) {
+  const emptyText = labels?.emptyText ?? EMPTY_BEAT_TEXT;
+  const timeText = labels?.time ?? formatYear;
+  const tickText = labels?.tick ?? tickLabel;
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [view, setView] = useState<View>({ x: 0, y: 0, ppy: DEFAULT_PX_PER_YEAR, ns: 1 });
   const [vpW, setVpW] = useState(1200);
+  // A link being dragged from a beat's output handle; `over` is the beat under the cursor it could connect to.
+  const [link, setLink] = useState<{ from: string; x: number; y: number; over: string | null } | null>(null);
 
+  const boardRef = useRef<HTMLElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
   const vpRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{ sx: number; sy: number; vx: number; vy: number } | null>(null);
   const dragRef = useRef<{ id: string; cx: number; cy: number; wx: number; wy: number } | null>(null);
@@ -107,6 +145,24 @@ export function StorylineCanvas({
   );
 
   useLayoutEffect(() => fit(tree), [fitKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Full screen: the browser's Fullscreen API on the whole board (Esc exits). The state follows the document, so
+  // leaving with Esc is picked up too. The view is re-fitted once the new size has settled.
+  useEffect(() => {
+    const onChange = () => {
+      const on = document.fullscreenElement === boardRef.current;
+      setFullscreen(on);
+      requestAnimationFrame(() => fitRef.current());
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  const fitRef = useRef<() => void>(() => {});
+  fitRef.current = () => fit(tree);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void boardRef.current?.requestFullscreen?.().catch(() => {});
+  };
 
   // Track the viewport width so the axis knows how many ticks to draw.
   useEffect(() => {
@@ -195,6 +251,41 @@ export function StorylineCanvas({
     setDraggingId(null);
   };
 
+  // -- connect: drag from a beat's link handle onto a later beat to make it that beat's cause --
+  const toWorld = (e: { clientX: number; clientY: number }) => {
+    const r = vpRef.current!.getBoundingClientRect();
+    return { x: e.clientX - r.left - view.x, y: e.clientY - r.top - view.y };
+  };
+  const nodeUnder = (e: { clientX: number; clientY: number }, from: string) => {
+    const id = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest<HTMLElement>("[data-node-id]")?.dataset.nodeId;
+    return id && canConnect(tree, from, id) ? id : null;
+  };
+  const onLinkDown = (e: React.PointerEvent, id: string) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    onSelect(id);
+    setLink({ from: id, ...toWorld(e), over: null });
+  };
+  const onLinkMove = (e: React.PointerEvent) => {
+    if (link) setLink({ ...link, ...toWorld(e), over: nodeUnder(e, link.from) });
+  };
+  const onLinkUp = (e: React.PointerEvent) => {
+    if (!link) return;
+    const to = nodeUnder(e, link.from);
+    if (to) setTree((t) => connect(t, link.from, to));
+    setLink(null);
+  };
+
+  // A new beat dropped onto an existing link joins both ends of it.
+  const insertBeat = (childId: string) => {
+    const made = insertOnEdge(tree, childId, view.ppy);
+    if (!made) return;
+    setTree(made.tree);
+    onSelect(made.id);
+    onEditing(made.id);
+  };
+
   // -- derived screen-space bits for the timeline + keyframe strip --
   const sx = (year: number) => view.x + yearToX(year, view.ppy);
   const ticks = useMemo(
@@ -209,7 +300,8 @@ export function StorylineCanvas({
 
   return (
     <section
-      className="scanlines flex h-[560px] flex-col overflow-hidden rounded-3xl border-2 border-ink bg-stage text-void"
+      ref={boardRef}
+      className={`scanlines flex flex-col overflow-hidden border-2 border-ink bg-stage text-void ${fullscreen ? "h-screen" : "h-[560px] rounded-3xl"}`}
       aria-label="Storyline canvas"
     >
       <div
@@ -254,7 +346,39 @@ export function StorylineCanvas({
                   />
                 );
               })}
+            {link && tree[link.from] && (
+              <path
+                d={`M${xOf(tree[link.from]) + nodeW / 2} ${tree[link.from].y * view.ns + nodeH * 0.78} L${link.x} ${link.y}`}
+                fill="none"
+                stroke="#5b83ff"
+                strokeWidth={2}
+                strokeDasharray="6 4"
+              />
+            )}
           </svg>
+
+          {/* "+" on a link inserts a beat between its two ends */}
+          {nodes
+            .filter((n) => n.parentId && tree[n.parentId] && !tree[n.parentId].origin)
+            .map((n) => {
+              const p = tree[n.parentId!];
+              const mx = (xOf(p) + nodeW / 2 + xOf(n) - nodeW / 2) / 2;
+              const my = (p.y * view.ns + nodeH / 2 + n.y * view.ns + nodeH / 2) / 2;
+              return (
+                <button
+                  key={`ins-${n.id}`}
+                  type="button"
+                  data-ui
+                  aria-label="Insert a beat on this link"
+                  title="Insert a beat here"
+                  onClick={() => insertBeat(n.id)}
+                  className="absolute flex h-[18px] w-[18px] items-center justify-center rounded-full border border-stage-line bg-stage text-stage-dim opacity-70 hover:border-stage-oxide hover:text-stage-oxide hover:opacity-100"
+                  style={{ left: mx - 9, top: my - 9 }}
+                >
+                  <Plus size={11} />
+                </button>
+              );
+            })}
 
           {nodes.map((n) => {
             const leaf = isLeaf(tree, n.id);
@@ -263,6 +387,7 @@ export function StorylineCanvas({
               <div
                 key={n.id}
                 data-ui
+                data-node-id={n.id}
                 onPointerDown={() => onSelect(n.id)}
                 className="absolute"
                 style={{
@@ -275,8 +400,12 @@ export function StorylineCanvas({
               >
                 <div
                   className={`absolute left-0 top-0 flex origin-top-left cursor-default flex-col rounded-xl border bg-stage text-void shadow-[0_6px_18px_rgba(0,0,0,0.55)] ${
-                    sel ? "glow border-stage-oxide" : hotPath.has(n.id) ? "border-stage-oxide/60" : "border-stage-line"
-                  }`}
+                    link?.over === n.id
+                      ? "outline outline-2 outline-offset-2 outline-stage-oxide"
+                      : link && canConnect(tree, link.from, n.id)
+                        ? "outline outline-1 outline-dashed outline-stage-oxide/60"
+                        : ""
+                  } ${sel ? "glow border-stage-oxide" : hotPath.has(n.id) ? "border-stage-oxide/60" : "border-stage-line"}`}
                   style={{ width: NODE_W, height: NODE_H, transform: `scale(${view.ns})` }}
                 >
                   {/* Grip / header: drag left-right to change when this happens */}
@@ -289,13 +418,26 @@ export function StorylineCanvas({
                     title="Drag horizontally to change when this happens"
                   >
                     <span className="plaque-label min-w-0 truncate text-[10px] text-stage-oxide">
-                      {n.origin ? "Keyframe 0 · original" : formatOffset(offsetAt(frame, n.year))}
+                      {labels?.node ? labels.node(n) : n.origin ? "Keyframe 0 · original" : formatOffset(offsetAt(frame, n.year))}
                       {leaf && <span className="ml-2 text-stage-dim">· end</span>}
                     </span>
                     <div className="flex shrink-0 items-center gap-1.5">
                       {n.keyframe && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={n.keyframe.image} alt="" className="h-4 w-7 rounded-sm border border-stage-line object-cover" title="Has a keyframe" />
+                      )}
+                      {!n.origin && labels?.ripple !== false && (
+                        <button
+                          type="button"
+                          aria-label="Butterfly effect: rewrite everything after this beat"
+                          title="Butterfly effect: rewrite everything after this beat"
+                          disabled={busy}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => onRipple(n.id)}
+                          className="p-0.5 text-stage-dim hover:text-stage-oxide disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {rippleId === n.id ? <LoaderCircle size={13} className="animate-spin" /> : <ButterflyIcon size={13} />}
+                        </button>
                       )}
                       {!n.origin && (
                       <button
@@ -322,7 +464,7 @@ export function StorylineCanvas({
                         // before the browser fires blur, so blur can't be the only commit point.
                         onChange={(e) => patch(n.id, { text: e.target.value })}
                         onBlur={(e) => {
-                          if (!e.target.value.trim()) patch(n.id, { text: EMPTY_BEAT_TEXT });
+                          if (!e.target.value.trim()) patch(n.id, { text: emptyText });
                           onEditing(null);
                         }}
                         onKeyDown={(e) => e.key === "Escape" && (e.target as HTMLElement).blur()}
@@ -330,7 +472,7 @@ export function StorylineCanvas({
                       />
                     ) : (
                       <p onClick={() => onEditing(n.id)} className="h-full cursor-text overflow-y-auto text-[13px] leading-snug" title="Click to edit">
-                        {n.text || EMPTY_BEAT_TEXT}
+                        {n.text || emptyText}
                       </p>
                     )}
                   </div>
@@ -346,6 +488,19 @@ export function StorylineCanvas({
                     <Plus size={14} />
                   </button>
                   )}
+                  {!n.origin && (
+                    <span
+                      data-ui
+                      role="button"
+                      aria-label="Drag to a later beat to connect them"
+                      title="Drag to a later beat to connect them"
+                      onPointerDown={(e) => onLinkDown(e, n.id)}
+                      onPointerMove={onLinkMove}
+                      onPointerUp={onLinkUp}
+                      onPointerCancel={() => setLink(null)}
+                      className="absolute -right-1.5 top-[78%] h-3 w-3 -translate-y-1/2 cursor-crosshair rounded-full border border-stage-oxide bg-stage hover:bg-accent"
+                    />
+                  )}
                   {n.parentId && (
                     <span className="pointer-events-none absolute -left-1.5 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-stage-line bg-stage" />
                   )}
@@ -355,34 +510,49 @@ export function StorylineCanvas({
           })}
         </div>
 
-        {nodes.length > 0 && (
-          <div className="absolute right-3 top-2 flex flex-col items-end gap-1.5">
-            <p className="plaque-label pointer-events-none text-[10px] text-stage-dim">{frameCaption(frame)}</p>
-            <div data-ui className="flex items-center gap-2">
-              <label className="plaque-label flex items-center gap-1.5 rounded-full border border-stage-line bg-stage px-2.5 py-1 text-[10px] text-stage-dim">
-                Node size
-                <input
-                  type="range"
-                  min={MIN_NS}
-                  max={MAX_NS}
-                  step={0.05}
-                  value={view.ns}
-                  aria-label="Node size"
-                  onChange={(e) => setNodeScale(Number(e.target.value), (vpRef.current?.clientHeight ?? 0) / 2)}
-                  className="h-1 w-20 accent-[var(--color-accent)]"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => fit(tree)}
-                className="plaque-label inline-flex items-center gap-1.5 rounded-full border border-stage-line bg-stage px-2.5 py-1 text-[10px] text-stage-dim hover:border-stage-oxide hover:text-void"
-              >
-                <Maximize size={11} /> Fit
-              </button>
-            </div>
-            <p className="plaque-label pointer-events-none text-[9px] text-stage-dim/80">Scroll: time scale · Ctrl+scroll: node size</p>
+        <div className="absolute right-3 top-2 flex flex-col items-end gap-1.5">
+          {nodes.length > 0 && labels?.caption !== null && (
+            <p className="plaque-label pointer-events-none text-[10px] text-stage-dim">{labels?.caption ?? frameCaption(frame)}</p>
+          )}
+          <div data-ui className="flex items-center gap-2">
+            {nodes.length > 0 && (
+              <>
+                <label className="plaque-label flex items-center gap-1.5 rounded-full border border-stage-line bg-stage px-2.5 py-1 text-[10px] text-stage-dim">
+                  Node size
+                  <input
+                    type="range"
+                    min={MIN_NS}
+                    max={MAX_NS}
+                    step={0.05}
+                    value={view.ns}
+                    aria-label="Node size"
+                    onChange={(e) => setNodeScale(Number(e.target.value), (vpRef.current?.clientHeight ?? 0) / 2)}
+                    className="h-1 w-20 accent-[var(--color-accent)]"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => fit(tree)}
+                  className="plaque-label inline-flex items-center gap-1.5 rounded-full border border-stage-line bg-stage px-2.5 py-1 text-[10px] text-stage-dim hover:border-stage-oxide hover:text-void"
+                >
+                  <Maximize size={11} /> Fit
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              aria-pressed={fullscreen}
+              title={fullscreen ? "Exit full screen (Esc)" : "View the board in full screen"}
+              className="plaque-label inline-flex items-center gap-1.5 rounded-full border border-stage-line bg-stage px-2.5 py-1 text-[10px] text-stage-dim hover:border-stage-oxide hover:text-void"
+            >
+              {fullscreen ? <Shrink size={11} /> : <Expand size={11} />} {fullscreen ? "Exit full screen" : "Full screen"}
+            </button>
           </div>
-        )}
+          {nodes.length > 0 && (
+            <p className="plaque-label pointer-events-none text-[9px] text-stage-dim/80">Scroll: time scale · Ctrl+scroll: node size</p>
+          )}
+        </div>
 
         {inputs}
       </div>
@@ -392,7 +562,7 @@ export function StorylineCanvas({
         <span className="plaque-label absolute left-2 top-1 text-[10px] text-stage-dim">Keyframes</span>
         {keyed.length === 0 && (
           <span className="absolute inset-0 flex items-center justify-center text-xs text-stage-dim">
-            Generated keyframes appear here, aligned to their year.
+            {labels?.emptyStrip ?? "Generated keyframes appear here, aligned to their year."}
           </span>
         )}
         {[...keyed]
@@ -409,10 +579,10 @@ export function StorylineCanvas({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={n.keyframe!.image}
-                alt={`Keyframe ${formatYear(n.year)}`}
+                alt={`Keyframe ${timeText(n.year)}`}
                 className={`h-[60px] w-full rounded-md border object-cover ${n.id === selectedId ? "border-stage-oxide" : "border-stage-line"}`}
               />
-              <span className="text-[10px] leading-4 text-stage-dim">{formatYear(n.year)}</span>
+              <span className="text-[10px] leading-4 text-stage-dim">{timeText(n.year)}</span>
             </button>
           ))}
       </div>
@@ -426,7 +596,7 @@ export function StorylineCanvas({
           ticks.major.map((t) => (
             <div key={t} className="absolute top-0 flex flex-col items-start" style={{ left: sx(t) }}>
               <div className="h-3 w-px bg-stage-dim" />
-              <span className="plaque-label -translate-x-1/2 whitespace-nowrap pt-0.5 text-[10px] text-stage-dim">{tickLabel(t)}</span>
+              <span className="plaque-label -translate-x-1/2 whitespace-nowrap pt-0.5 text-[10px] text-stage-dim">{tickText(t)}</span>
             </div>
           ))}
         {nodes.map((n) => (
@@ -441,7 +611,7 @@ export function StorylineCanvas({
             className="absolute bottom-0.5 -translate-x-1/2 whitespace-nowrap rounded-full bg-accent px-2 text-[10px] font-bold text-on-accent"
             style={{ left: sx(tree[draggingId].year) }}
           >
-            {formatYear(tree[draggingId].year)}
+            {timeText(tree[draggingId].year)}
           </span>
         )}
       </div>

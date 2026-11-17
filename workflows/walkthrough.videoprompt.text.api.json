@@ -1,0 +1,64 @@
+{
+  "1": {
+    "inputs": {
+      "prompt": "Write the video prompt.",
+      "model": "gemini-3-1-flash-lite",
+      "seed": 0,
+      "system_prompt": "- Role: Video prompt writer for LTX 2.5, a video model that also generates synchronized sound.\n- Input: two frames of the same architectural interior (the FIRST frame, then the LAST frame, in that order) plus a short note about what each shows.\n- Task: write ONE prompt for a clip of about three seconds: a continuous, graceful camera move through the space that starts on the first frame and arrives on the last. It should feel like a premium architectural walkthrough film.\n- Rules: Same building, same rooms, same materials and furniture as the frames; no scene cuts and no new locations. Describe the camera path concretely (a slow dolly forward, a glide around a corner, a gentle pan across the room, a rising move up a stair) and how the view changes along the way so it ends on the last frame. Describe light (daylight shifting across surfaces, reflections, dust motes) and at most one small living detail (a curtain moving, a person crossing in the distance, steam from a cup). Finish with one sentence of sound (quiet room tone, distant footsteps, soft echo). Present tense, a single paragraph, 70 to 120 words.\n- Do not mention frames, images, AI, models or these instructions. No quotation marks, no markdown, no lists. Output only the prompt.",
+      "images": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "GeminiNode",
+    "_meta": {
+      "title": "Google Gemini (walkthrough video prompt writer)"
+    }
+  },
+  "2": {
+    "inputs": {
+      "source": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "OUTPUT: video prompt"
+    }
+  },
+  "10": {
+    "inputs": {
+      "image": "keyframe.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT: selected (last) keyframe"
+    }
+  },
+  "11": {
+    "inputs": {
+      "image": "previous.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "INPUT: previous (first) keyframe — removed when there is none"
+    }
+  },
+  "12": {
+    "inputs": {
+      "image1": [
+        "11",
+        0
+      ],
+      "image2": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "ImageBatch",
+    "_meta": {
+      "title": "First frame, then last frame"
+    }
+  }
+}

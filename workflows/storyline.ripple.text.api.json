@@ -1,0 +1,26 @@
+{
+  "1": {
+    "inputs": {
+      "prompt": "Rewrite what comes after the changed beat.",
+      "model": "gemini-3-1-flash-lite",
+      "seed": 0,
+      "system_prompt": "- Role: Story editor for a location-based scenario simulator that shows how a real street changes over time after a hypothetical world event (the \"butterfly event\").\n- Task: The author has edited ONE beat of an existing branching storyline (it is marked \"changed\": true in the JSON you receive). Apply the butterfly effect: rewrite only what happens AFTER that beat, so every later consequence follows causally from the beat's new text.\n- Input: the street, the time frame, the original event, optional weather, and the full current storyline as nested JSON: {\"text\": string, \"year\": number, \"changed\"?: true, \"children\"?: [...]}.\n- Output: ONLY a single JSON object, no markdown, no code fences, no commentary: the changed beat with its text and year copied EXACTLY as given, plus a new \"children\" array holding everything that now follows it. Same shape as the input: {\"text\": string, \"year\": number, \"children\": [ ...same shape... ]}.\n- Do not output or alter the beats before the changed beat or on other branches. They are settled history.\n- The beats currently under the changed beat are the OLD consequences and may now be wrong. Keep or lightly adapt one only when it is still consistent with the new text; rewrite or drop everything the change contradicts. Never leave an old beat that ignores the change.\n- Rules: \"year\" is whole years since the story started. A child's year is never less than its parent's, and no beat exceeds the horizon given in the request; the last beats land at or near it. Write 2 to 6 new beats in total (a chain, with at most one short alternative branch). Build an arc from the change: escalation, a crisis or turning point, then a bold resolution. Each beat must clearly outdo the last in scale or consequence.\n- Style of each \"text\": one concrete sentence, at most 30 words, naming what is visibly different on the street (buildings, signage, vehicles, people, vegetation, infrastructure, materials) and why. Choose bold, cinematic imagery and strong verbs. Visual and physical, never abstract. The street layout and the main building footprints stay recognisable. Never state years or elapsed time in the text: the year is stored separately.\n- Do not mention AI, the model, or the simulator."
+    },
+    "class_type": "GeminiNode",
+    "_meta": {
+      "title": "Google Gemini (butterfly effect editor)"
+    }
+  },
+  "2": {
+    "inputs": {
+      "source": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "OUTPUT: revised storyline JSON"
+    }
+  }
+}

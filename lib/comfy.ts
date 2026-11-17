@@ -7,8 +7,10 @@ import apiImageTemplate from "../workflows/api_nano_banana_pro.json";
 import apiVideoTemplate from "../workflows/api_seedance2_5_flf2v.json";
 import flf2vTemplate from "../workflows/ltx-2-5-flf2v.json";
 import storyTemplate from "../workflows/storyline.text.api.json";
+import rippleTemplate from "../workflows/storyline.ripple.text.api.json";
 import videoPromptTemplate from "../workflows/videoprompt.text.api.json";
 import videoTemplate from "../workflows/whatifstreet.video.api.json";
+import walkthroughPromptTemplate from "../workflows/walkthrough.videoprompt.text.api.json";
 import { MERGE_NODE_PROGRESS, NODE_MERGE, buildMergeWorkflow } from "./merge-video";
 import { NODE_STORY, STORY_NODE_PROGRESS, buildStoryWorkflow, type StoryWorkflowParams } from "./story-workflow";
 import {
@@ -18,6 +20,7 @@ import {
   type VideoPromptWorkflowParams,
 } from "./video-prompt";
 import { NODE, NODE_PROGRESS, buildWorkflow, type WorkflowParams } from "./workflow";
+import { buildWalkthroughImageWorkflow, type WalkthroughImageParams } from "./walkthrough-workflow";
 import {
   API_IMAGE_NODE_PROGRESS,
   API_VIDEO_NODE_PROGRESS,
@@ -232,6 +235,11 @@ export async function queueStoryStage(params: StoryWorkflowParams, clientId: str
   return queueGraph(buildStoryWorkflow(storyTemplate as Workflow, params), clientId);
 }
 
+/** POST /prompt with the butterfly-effect workflow: same graph shape as the storyline writer, with the editor's system prompt. */
+export async function queueRippleStage(params: StoryWorkflowParams, clientId: string): Promise<{ promptId: string }> {
+  return queueGraph(buildStoryWorkflow(rippleTemplate as Workflow, params), clientId);
+}
+
 /** Resolves to the text produced by the storyline workflow's PreviewAny node. */
 export async function trackStoryStage(
   promptId: string,
@@ -273,8 +281,8 @@ export async function trackVideoStage(
 }
 
 /** POST /prompt with the clip-merging graph; `files` are LoadVideo names (see outputFileName). */
-export async function queueMergeStage(files: string[], clientId: string): Promise<{ promptId: string }> {
-  return queueGraph(buildMergeWorkflow(files) as unknown as Workflow, clientId);
+export async function queueMergeStage(files: string[], clientId: string, prefix?: string): Promise<{ promptId: string }> {
+  return queueGraph(buildMergeWorkflow(files, prefix) as unknown as Workflow, clientId);
 }
 
 export async function trackMergeStage(
@@ -344,6 +352,16 @@ export async function trackVideoPromptStage(
   const text = outputs[NODE_VPROMPT.output]?.text?.[0];
   if (typeof text !== "string" || !text.trim()) throw new ComfyError("Run finished but produced no text.");
   return text;
+}
+
+/** Walkthrough: Nano Banana Pro rendering one image from a prompt and any number of reference images. Track with trackApiImageStage. */
+export async function queueWalkthroughImageStage(params: WalkthroughImageParams, clientId: string): Promise<{ promptId: string }> {
+  return queueGraph(buildWalkthroughImageWorkflow(apiImageTemplate as unknown as Workflow, params), clientId);
+}
+
+/** Walkthrough: the interior-film flavour of the video-prompt writer. Same node ids as the street one; track with trackVideoPromptStage. */
+export async function queueWalkthroughPromptStage(params: VideoPromptWorkflowParams, clientId: string): Promise<{ promptId: string }> {
+  return queueGraph(buildVideoPromptWorkflow(walkthroughPromptTemplate as Workflow, params), clientId);
 }
 
 /**

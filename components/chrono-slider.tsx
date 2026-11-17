@@ -28,7 +28,7 @@ export function ChronoSlider({ years, disabled, onChange }: Props) {
       <div className="flex items-end justify-between">
         <div>
           <div className="plaque-label text-xs text-dim">Elapsed</div>
-          <div className="font-display text-4xl font-semibold tabular-nums tracking-tight text-ink">
+          <div className="font-display text-xl font-semibold tabular-nums tracking-tight text-ink">
             {formatYears(years)} <span className="text-base font-normal text-dim">years</span>
           </div>
         </div>

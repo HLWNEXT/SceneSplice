@@ -25,6 +25,7 @@ export const mergeSignature = (clips: { file: ClipFile }[]) =>
 
 /** `files` are LoadVideo names, e.g. "video/clip.mp4 [output]". Needs at least two. */
 export function buildMergeWorkflow(files: string[], prefix = "whatifstreet/film"): Workflow {
+  // `prefix` is the SaveVideo filename prefix; the Walkthrough tab passes its own so films land in their own folder.
   if (files.length < 2) throw new Error("Need at least two videos to combine.");
   const wf: Workflow = {};
   files.forEach((file, i) => {

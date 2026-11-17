@@ -4,7 +4,7 @@
 
 import { BUTTERFLY_ACTIONS, type ButterflySelection } from "./butterfly.ts";
 import { CLIMATE_CONDITIONS, type ClimateSelection } from "./climate.ts";
-import type { StoryJson } from "./storyline.ts";
+import type { StoryJson, StoryOutline } from "./storyline.ts";
 import { formatOffset } from "./timetravel.ts";
 
 export type InputKind = "location" | "time" | "butterfly" | "environment";
@@ -80,31 +80,58 @@ export function storyPrompt(r: StoryRequest): string {
 }
 
 const MAX_BEATS = 16;
+const MAX_RIPPLE_BEATS = 12;
 
-/**
- * Reads the model's reply into a StoryJson. Tolerates code fences and chatter around the JSON, and
- * repairs what is safe to repair (years out of order or past the horizon) instead of rejecting it.
- */
-export function parseStory(raw: string, horizon: number): StoryJson {
+// Tolerates code fences and chatter around the JSON.
+function readJsonObject(raw: string): unknown {
   const start = raw.indexOf("{");
   const end = raw.lastIndexOf("}");
   if (start < 0 || end < start) throw new Error("The model didn't return a storyline.");
-  let data: unknown;
   try {
-    data = JSON.parse(raw.slice(start, end + 1));
+    return JSON.parse(raw.slice(start, end + 1));
   } catch {
     throw new Error("The model's storyline wasn't valid JSON.");
   }
+}
+
+// Repairs what is safe to repair (years out of order or past the horizon) instead of rejecting the beat.
+function beatCleaner(horizon: number, limit: number) {
   let count = 0;
   const clean = (n: any, minYear: number): StoryJson => {
     if (!n || typeof n.text !== "string" || !n.text.trim()) throw new Error("A story beat had no text.");
-    if (++count > MAX_BEATS) throw new Error(`The storyline has more than ${MAX_BEATS} beats.`);
+    if (++count > limit) throw new Error(`The storyline has more than ${limit} beats.`);
     const asked = Number(n.year);
     const year = Math.min(horizon, Math.max(minYear, Number.isFinite(asked) ? asked : minYear));
     const kids = Array.isArray(n.children) ? n.children.map((c: unknown) => clean(c, year)) : [];
     return { text: n.text.trim().slice(0, 400), year, ...(kids.length ? { children: kids } : {}) };
   };
-  const root = clean(data, 0);
+  return clean;
+}
+
+/** Reads the model's reply into a StoryJson. */
+export function parseStory(raw: string, horizon: number): StoryJson {
+  const root = beatCleaner(horizon, MAX_BEATS)(readJsonObject(raw), 0);
   root.year = 0;
   return root;
+}
+
+/** Reads a butterfly-effect reply: the new beats after the changed beat (the reply's own copy of that beat is ignored). */
+export function parseRipple(raw: string, startYear: number, horizon: number): StoryJson[] {
+  const data = readJsonObject(raw) as { children?: unknown } | null;
+  const clean = beatCleaner(Math.max(horizon, startYear), MAX_RIPPLE_BEATS);
+  const kids = Array.isArray(data?.children) ? data.children.map((c: unknown) => clean(c, startYear)) : [];
+  if (!kids.length) throw new Error("The model didn't write any later beats.");
+  return kids;
+}
+
+export type RippleRequest = StoryRequest & { outline: StoryOutline };
+
+/** The user message for the butterfly-effect Gemini node: the starting points plus the updated storyline. */
+export function ripplePrompt(r: RippleRequest): string {
+  return [
+    storyPrompt(r),
+    'Updated storyline (JSON). The beat marked "changed": true was just edited by the author and is now fixed. Beats before it and on other branches are settled and must not change:',
+    JSON.stringify(r.outline),
+    'Rewrite what comes after the changed beat. Return that beat (text and year exactly as given) with its new "children".',
+  ].join("\n");
 }

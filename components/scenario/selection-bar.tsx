@@ -4,10 +4,11 @@ import { Clapperboard, ImagePlus, LoaderCircle, PencilLine, Plus, Square, Trash2
 import type { ReactNode } from "react";
 import { INPUT_LABELS, offsetAt, type InputKind, type StoryFrame } from "../../lib/scenario";
 import type { StoryNode } from "../../lib/storyline";
+import { ButterflyIcon } from "../storyline/butterfly-icon";
 import { formatOffset } from "../../lib/timetravel";
 
 export type Selection = { type: "input"; kind: InputKind } | { type: "beat"; id: string } | null;
-export type JobState = { kind: "story" | "keyframe" | "video" | "merge"; id?: string } | null;
+export type JobState = { kind: "story" | "ripple" | "keyframe" | "video" | "merge"; id?: string } | null;
 
 type Props = {
   selection: Selection;
@@ -31,6 +32,8 @@ type Props = {
   videoFromPrevious: boolean;
   onMakeVideo: () => void;
   onAddChild: () => void;
+  /** Butterfly effect: rewrite the story after the selected beat. */
+  onRipple: () => void;
   onDelete: () => void;
 };
 
@@ -110,6 +113,18 @@ export function SelectionBar(p: Props) {
               <>
                 <button type="button" onClick={p.onAddChild} disabled={busy} className={quiet}>
                   <Plus size={13} /> Add next beat
+                </button>
+                <button
+                  type="button"
+                  onClick={p.onRipple}
+                  disabled={busy || offline}
+                  title="Rewrite everything after this beat so it follows from this beat's text. Earlier beats stay as they are."
+                  className={quiet}
+                >
+                  <Spin on={p.job?.kind === "ripple" && p.job.id === p.beat.id}>
+                    <ButterflyIcon size={13} />
+                  </Spin>
+                  Butterfly effect
                 </button>
                 <button type="button" onClick={p.onDelete} disabled={busy} className={quiet}>
                   <Trash2 size={13} /> Delete
