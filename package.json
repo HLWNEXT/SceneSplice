@@ -6,6 +6,7 @@
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
+    "tunnel": "cloudflared tunnel --url http://127.0.0.1:3000",
     "test": "node --test --experimental-strip-types test/*.test.ts && tsc --noEmit"
   },
   "engines": {

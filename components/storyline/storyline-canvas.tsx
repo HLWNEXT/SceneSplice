@@ -9,6 +9,7 @@ import {
   NODE_H,
   NODE_W,
   ORIGIN_GAP,
+  YEAR_AXIS,
   axisTicks,
   canConnect,
   clampScale,
@@ -22,6 +23,7 @@ import {
   xToYear,
   yearToX,
   type StoryTree,
+  type TimeAxis,
 } from "../../lib/storyline";
 import { formatOffset } from "../../lib/timetravel";
 
@@ -51,6 +53,8 @@ export type CanvasLabels = {
   emptyStrip?: string;
   /** Whether nodes have the butterfly-effect button. Default true. */
   ripple?: boolean;
+  /** What the horizontal axis measures and how far it runs. Default: years. */
+  axis?: TimeAxis;
 };
 
 type Props = {
@@ -97,6 +101,7 @@ export function StorylineCanvas({
   inputs,
 }: Props) {
   const emptyText = labels?.emptyText ?? EMPTY_BEAT_TEXT;
+  const axis = labels?.axis ?? YEAR_AXIS;
   const timeText = labels?.time ?? formatYear;
   const tickText = labels?.tick ?? tickLabel;
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -244,7 +249,7 @@ export function StorylineCanvas({
     if (!d) return;
     const year = xToYear(d.wx + (e.clientX - d.cx), view.ppy);
     const y = d.wy + (e.clientY - d.cy) / view.ns;
-    setTree((t) => (t[d.id] ? { ...t, [d.id]: { ...t[d.id], year: clampYear(t, d.id, year, view.ppy), y } } : t));
+    setTree((t) => (t[d.id] ? { ...t, [d.id]: { ...t[d.id], year: clampYear(t, d.id, year, view.ppy, axis), y } } : t));
   };
   const onGripUp = () => {
     dragRef.current = null;
@@ -279,7 +284,7 @@ export function StorylineCanvas({
 
   // A new beat dropped onto an existing link joins both ends of it.
   const insertBeat = (childId: string) => {
-    const made = insertOnEdge(tree, childId, view.ppy);
+    const made = insertOnEdge(tree, childId, view.ppy, axis);
     if (!made) return;
     setTree(made.tree);
     onSelect(made.id);
@@ -289,8 +294,8 @@ export function StorylineCanvas({
   // -- derived screen-space bits for the timeline + keyframe strip --
   const sx = (year: number) => view.x + yearToX(year, view.ppy);
   const ticks = useMemo(
-    () => axisTicks(view.ppy, -view.x / view.ppy, (vpW - view.x) / view.ppy),
-    [view.ppy, view.x, vpW],
+    () => axisTicks(view.ppy, -view.x / view.ppy, Math.min(axis.max, (vpW - view.x) / view.ppy), axis),
+    [view.ppy, view.x, vpW, axis],
   );
   const keyed = nodes.filter((n) => n.keyframe);
   const nodeW = NODE_W * view.ns;

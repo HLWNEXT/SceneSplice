@@ -66,13 +66,28 @@ const TICK_STEPS: readonly (readonly [number, number | null])[] = [
   [50_000, 10_000],
   [100_000, 20_000],
 ];
+/**
+ * What the horizontal axis measures. The street storyline counts years (the default); other users of the
+ * canvas bring their own unit, e.g. the walkthrough's seconds. `steps` are [major, minor] gridline spacings
+ * in axis units, smallest first.
+ */
+export type TimeAxis = {
+  /** The last position a node may sit at. */
+  max: number;
+  steps: readonly (readonly [number, number | null])[];
+  /** How far after its parent a new child is placed. */
+  gap: number;
+};
+
+export const YEAR_AXIS: TimeAxis = { max: MAX_YEAR, steps: TICK_STEPS, gap: 1 };
+
 const MIN_LABEL_PX = 96;
 const MIN_MINOR_PX = 10;
 const SNAP_PX = 12;
 
 /** Major/minor tick years covering [from, to] for the given time scale. */
-export function axisTicks(ppy: number, from: number, to: number): { major: number[]; minor: number[] } {
-  const [step, minorStep] = TICK_STEPS.find(([s]) => s * ppy >= MIN_LABEL_PX) ?? TICK_STEPS[TICK_STEPS.length - 1];
+export function axisTicks(ppy: number, from: number, to: number, axis: TimeAxis = YEAR_AXIS): { major: number[]; minor: number[] } {
+  const [step, minorStep] = axis.steps.find(([s]) => s * ppy >= MIN_LABEL_PX) ?? axis.steps[axis.steps.length - 1];
   const gen = (s: number) => {
     const out: number[] = [];
     for (let i = Math.max(0, Math.ceil(from / s - 1e-9)); i * s <= to && out.length < 600; i++) out.push(i * s);
@@ -87,15 +102,15 @@ export function axisTicks(ppy: number, from: number, to: number): { major: numbe
 
 // Dragging snaps to the finest grid step that is at least SNAP_PX wide, so zooming in unlocks finer
 // time (quarters, then months). Without a scale it snaps to whole months.
-export function snapStep(ppy?: number): number {
-  if (!ppy) return 1 / 12;
-  const steps = TICK_STEPS.flatMap(([s, m]) => (m ? [m, s] : [s]));
-  return steps.find((s) => s * ppy >= SNAP_PX) ?? 100_000;
+export function snapStep(ppy?: number, axis: TimeAxis = YEAR_AXIS): number {
+  const steps = axis.steps.flatMap(([s, m]) => (m ? [m, s] : [s]));
+  if (!ppy) return steps[0];
+  return steps.find((s) => s * ppy >= SNAP_PX) ?? steps[steps.length - 1];
 }
 
-export function roundYear(year: number, ppy?: number): number {
-  const step = snapStep(ppy);
-  return Math.min(MAX_YEAR, Math.max(0, Math.round(year / step) * step));
+export function roundYear(year: number, ppy?: number, axis: TimeAxis = YEAR_AXIS): number {
+  const step = snapStep(ppy, axis);
+  return Math.min(axis.max, Math.max(0, Math.round(year / step) * step));
 }
 
 const monthsOf = (years: number) => Math.round(years * 12);
@@ -156,12 +171,12 @@ export function deleteSubtree(tree: StoryTree, id: string): StoryTree {
 }
 
 // A beat may not happen before its parent or after any child.
-export function clampYear(tree: StoryTree, id: string, year: number, ppy?: number): number {
+export function clampYear(tree: StoryTree, id: string, year: number, ppy?: number, axis: TimeAxis = YEAR_AXIS): number {
   const node = tree[id];
   const lo = node?.parentId ? (tree[node.parentId]?.year ?? 0) : 0;
   const kids = childrenOf(tree, id);
-  const hi = kids.length ? Math.min(...kids.map((k) => k.year)) : MAX_YEAR;
-  return Math.min(hi, Math.max(lo, roundYear(year, ppy)));
+  const hi = kids.length ? Math.min(...kids.map((k) => k.year)) : axis.max;
+  return Math.min(hi, Math.max(lo, roundYear(year, ppy, axis)));
 }
 
 let seq = 0;
@@ -173,10 +188,11 @@ export function addChild(
   tree: StoryTree,
   parentId: string,
   ppy = DEFAULT_PX_PER_YEAR,
+  axis: TimeAxis = YEAR_AXIS,
 ): { tree: StoryTree; id: string } {
   const parent = tree[parentId];
   const kids = childrenOf(tree, parentId);
-  const childYear = Math.min(MAX_YEAR, parent.year + 1);
+  const childYear = Math.min(axis.max, parent.year + axis.gap);
   const lowest = kids.length ? Math.max(...kids.map((k) => k.y)) + ROW_H : parent.y;
   // Walk down in whole rows until no existing beat overlaps the new one on screen.
   let y = lowest;
@@ -215,11 +231,16 @@ export function connect(tree: StoryTree, from: string, to: string): StoryTree {
 }
 
 /** Drops a new beat onto the link into `childId`, so parent -> new beat -> child. Null when there is no such link to split. */
-export function insertOnEdge(tree: StoryTree, childId: string, ppy = DEFAULT_PX_PER_YEAR): { tree: StoryTree; id: string } | null {
+export function insertOnEdge(
+  tree: StoryTree,
+  childId: string,
+  ppy = DEFAULT_PX_PER_YEAR,
+  axis: TimeAxis = YEAR_AXIS,
+): { tree: StoryTree; id: string } | null {
   const child = tree[childId];
   const parent = child?.parentId ? tree[child.parentId] : undefined;
   if (!child || !parent || parent.origin) return null;
-  const year = Math.min(child.year, Math.max(parent.year, roundYear((parent.year + child.year) / 2, ppy)));
+  const year = Math.min(child.year, Math.max(parent.year, roundYear((parent.year + child.year) / 2, ppy, axis)));
   let y = (parent.y + child.y) / 2;
   while (overlaps(tree, year, y, ppy)) y += ROW_H;
   const id = newId();

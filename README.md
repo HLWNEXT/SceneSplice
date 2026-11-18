@@ -69,7 +69,21 @@ npm run dev                    # http://127.0.0.1:3000
 | --- | --- |
 | `npm run dev` | Start the dev server on `127.0.0.1:3000` |
 | `npm run build` / `npm start` | Production build and server |
+| `npm run tunnel` | Expose the app on a public `https://*.trycloudflare.com` URL via [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) (see below) |
 | `npm test` | Unit tests, then a TypeScript type-check |
+
+### Sharing via Cloudflare Tunnel
+
+Install `cloudflared` (Windows: `winget install Cloudflare.cloudflared`), then in two terminals:
+
+```sh
+npm run build && npm start     # production server on 127.0.0.1:3000
+npm run tunnel                 # prints the public https://....trycloudflare.com URL
+```
+
+The app has no login of its own, and anyone with the URL can use the server-side keys in `.env.local`
+(`COMFY_CLOUD_API_KEY`, `GOOGLE_MAPS_API_KEY`) and your ComfyUI server. For anything beyond a quick demo, use a
+named tunnel and put it behind [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/).
 
 ## Configuration
 

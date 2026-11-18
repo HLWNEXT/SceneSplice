@@ -1,15 +1,23 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { NEW_BEAT_TEXT, addChild, connect, deleteSubtree, insertOnEdge, type StoryTree } from "../lib/storyline.ts";
+import { NEW_BEAT_TEXT, addChild, axisTicks, clampYear, connect, deleteSubtree, insertOnEdge, roundYear, snapStep, type StoryTree } from "../lib/storyline.ts";
 import { NODE_VPROMPT, buildVideoPromptWorkflow } from "../lib/video-prompt.ts";
+import { exportWalkthroughFile, parseWalkthroughFile } from "../lib/walkthrough-file.ts";
 import {
+  CLIP_LIMITS,
   EMPTY_SCENE_TEXT,
+  MAX_FILM_SECONDS,
+  MAX_SCENES,
+  SECONDS_AXIS,
   blankScene,
   canGenerate,
+  clipSeconds,
   displayTree,
   fallbackWalkthroughPrompt,
   finalFrame,
+  formatClock,
+  gapSeconds,
   inbetweenPrompt,
   newWalkthrough,
   promptOf,
@@ -17,9 +25,13 @@ import {
   renderPrompt,
   route,
   routeClips,
+  routeSeconds,
   sceneBlocker,
   sceneLabel,
   setMode,
+  singleBlocker,
+  singleClipSeconds,
+  singleKey,
   transitionKey,
   uploadedFile,
   videoBlocker,
@@ -69,13 +81,15 @@ test("placeholders from the canvas don't count as a prompt", () => {
 test("blockers say what is missing", () => {
   const { tree: bare, ids } = line();
   const [s0, s1, s2] = ids;
-  const tree = withText(bare, s1, "a reading nook");
-  const map: SceneMap = { [s0]: blankScene(), [s1]: whitebox("w.png"), [s2]: rendered("r.png") };
+  const tree = bare;
+  const map: SceneMap = { [s0]: blankScene(), [s1]: { ...whitebox("w.png"), imagePrompt: "a reading nook" }, [s2]: rendered("r.png") };
   assert.match(sceneBlocker(tree, map, s0)!, /Upload a white-box/);
   assert.equal(sceneBlocker(tree, map, s1), null);
   assert.equal(canGenerate(tree, map, s1), true);
   assert.equal(canGenerate(tree, map, s2), false, "rendered scenes are never generated");
-  assert.match(sceneBlocker(withText(tree, s1, " "), map, s1)!, /Describe/);
+  assert.match(sceneBlocker(tree, { ...map, [s1]: { ...map[s1], imagePrompt: " " } }, s1)!, /Describe/);
+  // The animation prompt (node text) is not needed to render an image.
+  assert.equal(sceneBlocker(withText(tree, s1, ""), map, s1), null);
   assert.match(sceneBlocker(tree, { [s2]: blankScene("rendered") }, s2)!, /rendered view/);
 });
 
@@ -200,8 +214,139 @@ test("prompts carry the scene text, style and how many references there are", ()
 
   assert.match(inbetweenPrompt({ style: "", prompt: "" }), /halfway viewpoint/);
   assert.match(inbetweenPrompt({ style: "", prompt: "the stair landing" }), /stair landing/);
-  assert.match(walkthroughVideoRequest({ from: "lobby", to: "atrium", style: "" }), /First frame: lobby[\s\S]*Last frame: atrium/);
-  assert.match(fallbackWalkthroughPrompt({ from: "lobby", to: "" }), /lobby/);
+});
+
+test("the video request leads with the user's animation prompt, for one frame or two", () => {
+  const two = walkthroughVideoRequest({ motion: "slow dolly toward the window, curtain stirs", style: "warm", mode: "flf2v", seconds: 8 });
+  assert.match(two, /Two frames[\s\S]*first then last/);
+  assert.match(two, /slow dolly toward the window, curtain stirs/);
+  assert.match(two, /about 8 seconds/);
+  assert.match(two, /warm/);
+  const one = walkthroughVideoRequest({ motion: "  orbit the table  ", style: "", mode: "single" });
+  assert.match(one, /One frame of an interior/);
+  assert.match(one, /orbit the table/);
+  assert.doesNotMatch(one, /Two frames|design intent|seconds long/);
+  assert.match(walkthroughVideoRequest({ motion: "", style: "", mode: "single" }), /No direction was given/);
+
+  assert.match(fallbackWalkthroughPrompt({ motion: "orbit the table", mode: "single" }), /^orbit the table[\s\S]*starting on the given view/);
+  assert.match(fallbackWalkthroughPrompt({ motion: "", mode: "flf2v" }), /first view to the second/);
+});
+
+test("the interior video-prompt workflow handles one frame as well as two", () => {
+  const sys = vprompt["1"].inputs.system_prompt as string;
+  assert.match(sys, /single frame/);
+  assert.match(sys, /direction comes first/);
+  const single = buildVideoPromptWorkflow(vprompt, { firstImage: null, lastImage: "a.png", prompt: "p", seed: 1, seconds: 8 });
+  assert.equal(single[NODE_VPROMPT.first], undefined);
+  assert.match(single[NODE_VPROMPT.gemini].inputs.system_prompt as string, /about 8 seconds/);
+});
+
+test("a single-frame clip is made from the scene's own frame and goes stale with it", () => {
+  const { tree, ids } = line();
+  const [a, b] = ids;
+  const map: SceneMap = { [a]: rendered("a.png"), [b]: rendered("b.png") };
+  assert.equal(singleBlocker(map, a), null);
+  assert.match(singleBlocker({ [a]: blankScene("rendered") }, a)!, /finished frame/);
+  const from = singleKey(map, a)!;
+  const clipped: SceneMap = { ...map, [a]: { ...map[a], video: f("one.mp4", "output"), videoMeta: { prompt: "p", from, mode: "single" } } };
+  assert.equal(videoStale(tree, clipped, a), false);
+  assert.equal(videoStale(tree, { ...clipped, [a]: { ...clipped[a], drawing: up("new.png") } }, a), true);
+  // Changing another scene's frame doesn't touch it, unlike a first/last clip.
+  assert.equal(videoStale(tree, { ...clipped, [b]: rendered("other.png") }, a), false);
+});
+
+test("the timeline is in seconds and stops at five minutes", () => {
+  assert.equal(MAX_FILM_SECONDS, 300);
+  assert.equal(formatClock(0), "0:00");
+  assert.equal(formatClock(75), "1:15");
+  assert.equal(formatClock(300), "5:00");
+  assert.equal(roundYear(999, 1, SECONDS_AXIS), 300, "snapping never passes 5:00");
+  assert.equal(roundYear(-5, 1, SECONDS_AXIS), 0);
+  assert.equal(roundYear(7.4, 40, SECONDS_AXIS), 7, "whole seconds at close zoom");
+  assert.equal(snapStep(1, SECONDS_AXIS), 15, "the finest gridline at least 12 px apart");
+  assert.equal(snapStep(undefined, SECONDS_AXIS), 1);
+
+  const first = addChild(newWalkthrough(), "start", 80, SECONDS_AXIS);
+  assert.equal(first.tree[first.id].year, SECONDS_AXIS.gap, "a new scene is a few seconds after its parent");
+  assert.equal(clampYear(first.tree, first.id, 9999, 80, SECONDS_AXIS), 300);
+  const atEnd = { ...first.tree, [first.id]: { ...first.tree[first.id], year: 300 } };
+  const end = addChild(atEnd, first.id, 80, SECONDS_AXIS);
+  assert.equal(end.tree[end.id].year, 300, "a scene added at the end has no room: callers see it did not move on");
+
+  const ticks = axisTicks(10, 0, 60, SECONDS_AXIS);
+  assert.deepEqual(ticks.major.slice(0, 3), [0, 10, 20]);
+  assert.equal(insertOnEdge(first.tree, first.id, 80, SECONDS_AXIS)!.tree[first.id].parentId !== "start", true);
+});
+
+test("a clip is as long as the gap between its scenes, kept within what the model can make", () => {
+  const first = addChild(newWalkthrough(), "start", 80, SECONDS_AXIS);
+  const tree = { ...first.tree, [first.id]: { ...first.tree[first.id], year: 12 } };
+  assert.equal(gapSeconds(tree, "start"), 0);
+  assert.equal(gapSeconds(tree, first.id), 12);
+  assert.equal(clipSeconds(12, false), 12);
+  assert.equal(clipSeconds(0.2, false), CLIP_LIMITS.local.min);
+  assert.equal(clipSeconds(90, false), CLIP_LIMITS.local.max);
+  assert.equal(clipSeconds(2, true), CLIP_LIMITS.api.min);
+  assert.equal(clipSeconds(90, true), CLIP_LIMITS.api.max);
+  assert.equal(singleClipSeconds(tree, first.id, false), 12, "a later scene's single clip fills its gap");
+  assert.equal(singleClipSeconds(tree, "start", false), CLIP_LIMITS.local.standard);
+  assert.equal(singleClipSeconds(tree, "start", true), CLIP_LIMITS.api.standard);
+
+  const map: SceneMap = {
+    start: { ...blankScene(), video: f("0.mp4", "output"), videoMeta: { prompt: "p", from: "x", mode: "single" } },
+    [first.id]: { ...blankScene(), video: f("1.mp4", "output") },
+  };
+  assert.equal(routeSeconds(tree, map, route(tree, null), false), 3 + 12);
+  assert.equal(routeSeconds(tree, {}, route(tree, null), false), 0, "no clips, no running time");
+
+  // A clip made for a 12 s gap is out of date once the scenes move apart or together.
+  const rendered2: SceneMap = { start: rendered("a.png"), [first.id]: rendered("b.png") };
+  const from = transitionKey(tree, rendered2, first.id)!;
+  const clipped: SceneMap = { ...rendered2, [first.id]: { ...rendered2[first.id], video: f("c.mp4", "output"), videoMeta: { prompt: "p", from, mode: "flf2v", gap: 12 } } };
+  assert.equal(videoStale(tree, clipped, first.id), false);
+  assert.equal(videoStale({ ...tree, [first.id]: { ...tree[first.id], year: 20 } }, clipped, first.id), true);
+});
+
+test("a walkthrough file round-trips, and a bad one says why", () => {
+  const { tree, ids } = line();
+  const [a, b, c] = ids;
+  const timed = { ...tree, [b]: { ...tree[b], year: 5, text: "dolly in" }, [c]: { ...tree[c], year: 20 } };
+  const scenes: SceneMap = {
+    [a]: { ...whitebox("w.png"), imagePrompt: "oak floors", references: [up("r.png")], render: { file: f("o.png", "output"), prompt: "p", generatedAt: 3 } },
+    [b]: { ...rendered("b.png"), video: f("v.mp4", "output"), videoMeta: { prompt: "pp", from: "k", mode: "single", gap: 5 } },
+  };
+  const text = exportWalkthroughFile({ style: "calm", tree: { ...timed, [b]: { ...timed[b], keyframe: { prompt: "x", image: "/view?x", generatedAt: 1 } } }, scenes, film: f("film.mp4", "output") });
+  assert.doesNotMatch(text, /\/view\?x/, "session URLs are not exported");
+  const back = parseWalkthroughFile(text);
+  assert.equal(back.style, "calm");
+  assert.deepEqual(Object.keys(back.tree).sort(), [a, b, c].sort());
+  assert.equal(back.tree[b].text, "dolly in");
+  assert.equal(back.tree[b].year, 5);
+  assert.equal(back.tree[b].keyframe, undefined);
+  assert.deepEqual(back.scenes, scenes);
+  assert.deepEqual(back.film, f("film.mp4", "output"));
+
+  const bad = (mutate: (o: Record<string, unknown>) => void) => {
+    const o = JSON.parse(text);
+    mutate(o);
+    return JSON.stringify(o);
+  };
+  assert.throws(() => parseWalkthroughFile("nope"), /valid JSON/);
+  assert.throws(() => parseWalkthroughFile(JSON.stringify({ app: "other" })), /isn't a walkthrough file/);
+  assert.throws(() => parseWalkthroughFile(bad((o) => (o.version = 9))), /version/);
+  assert.throws(() => parseWalkthroughFile(bad((o) => (o.nodes = []))), /no scenes/);
+  assert.throws(() => parseWalkthroughFile(bad((o) => ((o.nodes as { year: number }[])[1].year = 301))), /5-minute limit/);
+  assert.throws(() => parseWalkthroughFile(bad((o) => ((o.nodes as { parentId: string }[])[1].parentId = "ghost"))), /missing parent/);
+  assert.throws(() => parseWalkthroughFile(bad((o) => ((o.nodes as { parentId: string | null }[])[0].parentId = c))), /loop|exactly one/);
+  assert.throws(() => parseWalkthroughFile(bad((o) => ((o.scenes as Record<string, { mode: string }>)[a].mode = "weird"))), /invalid type/);
+  assert.throws(() => parseWalkthroughFile(bad((o) => (o.nodes = Array.from({ length: MAX_SCENES + 1 }, (_, i) => ({ id: `n${i}`, parentId: null, text: "", year: 0, y: 0 }))))), /most allowed/);
+  // Data for a scene that isn't in the tree is dropped; older files without prompts or scene data still load.
+  const dropped = parseWalkthroughFile(bad((o) => ((o.scenes as Record<string, unknown>).ghost = { mode: "rendered" })));
+  assert.equal(dropped.scenes.ghost, undefined);
+  const lean = parseWalkthroughFile(bad((o) => (delete o.scenes, delete o.style, delete o.film)));
+  assert.deepEqual(lean.scenes, {});
+  assert.equal(lean.style, "");
+  assert.equal(lean.film, null);
 });
 
 test("image workflow: image 1 is the one being edited, the rest batch in as references", () => {

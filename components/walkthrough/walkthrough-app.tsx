@@ -1,6 +1,6 @@
 "use client";
 
-import { LoaderCircle, X } from "lucide-react";
+import { Download, LoaderCircle, Upload as UploadIcon, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ComfyError,
@@ -10,6 +10,7 @@ import {
   queueApiVideoStage,
   queueFlf2vStage,
   queueMergeStage,
+  queueVideoStage,
   queueWalkthroughImageStage,
   queueWalkthroughPromptStage,
   trackApiImageStage,
@@ -17,6 +18,7 @@ import {
   trackFlf2vStage,
   trackMergeStage,
   trackVideoPromptStage,
+  trackVideoStage,
   uploadImage,
   viewUrl,
   type OutputFile,
@@ -26,15 +28,21 @@ import { mergeSignature } from "../../lib/merge-video";
 import { storyFrame } from "../../lib/scenario";
 import { addChild, deleteSubtree, descendantIds, type StoryTree } from "../../lib/storyline";
 import { cleanVideoPrompt } from "../../lib/video-prompt";
+import { exportWalkthroughFile, parseWalkthroughFile } from "../../lib/walkthrough-file";
 import {
   EMPTY_SCENE_TEXT,
+  MAX_FILM_SECONDS,
   MAX_REFERENCES,
   MAX_SCENES,
+  SECONDS_AXIS,
   blankScene,
   canGenerate,
+  clipSeconds,
   displayTree,
   fallbackWalkthroughPrompt,
   finalFrame,
+  formatClock,
+  gapSeconds,
   inbetweenPrompt,
   newWalkthrough,
   nextScene,
@@ -44,15 +52,20 @@ import {
   renderPrompt,
   route,
   routeClips,
+  routeSeconds,
   sceneBlocker,
   sceneLabel,
   sceneOf,
   setMode,
+  singleBlocker,
+  singleClipSeconds,
+  singleKey,
   transitionKey,
   uploadedFile,
   videoBlocker,
   videoStale,
   walkthroughVideoRequest,
+  type ClipMode,
   type SceneData,
   type SceneMap,
   type SceneMode,
@@ -72,20 +85,24 @@ const STEPS = [
 const isAbort = (err: unknown) => err instanceof DOMException && err.name === "AbortError";
 const errorText = (err: unknown) => (err instanceof ComfyError || err instanceof Error ? err.message : String(err));
 const seed32 = () => Math.floor(Math.random() * 2 ** 31);
-const pos = (t: number) => `${+t.toFixed(2)}`;
 const NOOP = () => {};
 const FRAME = storyFrame(0);
 
 const LABELS_BASE: Omit<CanvasLabels, "node"> = {
-  tick: pos,
-  time: (t) => `Position ${pos(t)}`,
-  caption: "Left to right = order of the walk. The film follows the highlighted route.",
+  tick: formatClock,
+  time: formatClock,
+  axis: SECONDS_AXIS,
+  caption: `Left to right = time in the film (0:00 to ${formatClock(MAX_FILM_SECONDS)}). The gap between two scenes is the length of the clip between them. The film follows the highlighted route.`,
   emptyText: EMPTY_SCENE_TEXT,
   emptyStrip: "Frames appear here once a scene has a rendered or uploaded image.",
   ripple: false,
 };
 
-type Job = { kind: "image" | "video" | "merge" | "upload" | "batch"; id?: string } | null;
+type Job = { kind: "image" | "video" | "single" | "merge" | "upload" | "batch"; id?: string } | null;
+
+/** The film signature for a route: its clips, plus a mark for each clip that is out of date. */
+const routeSignature = (tree: StoryTree, scenes: SceneMap, nodes: ReturnType<typeof route>) =>
+  `${mergeSignature(routeClips(scenes, nodes))}#${nodes.map((n) => (videoStale(tree, scenes, n.id) ? "x" : "")).join("")}`;
 
 export function WalkthroughApp() {
   // "API models" setting: only changes the video model here (LTX on the server vs Seedance); images always use Nano Banana Pro.
@@ -200,10 +217,10 @@ export function WalkthroughApp() {
       const before = finalFrame(sceneOf(scenes, node.parentId!))!;
       const after = finalFrame(sceneOf(scenes, nextScene(tree, id)!.id))!;
       imageNames = [outputFileName(before), outputFileName(after)];
-      prompt = inbetweenPrompt({ style, prompt: promptOf(node) });
+      prompt = inbetweenPrompt({ style, prompt: scene.imagePrompt });
     } else {
       imageNames = [outputFileName(scene.drawing!.file), ...scene.references.map((r) => outputFileName(r.file))];
-      prompt = renderPrompt({ style, prompt: promptOf(node), referenceCount: scene.references.length });
+      prompt = renderPrompt({ style, prompt: scene.imagePrompt, referenceCount: scene.references.length });
     }
     const clientId = crypto.randomUUID();
     const { promptId } = await queueWalkthroughImageStage({ imageNames, prompt, seed: seed32() }, clientId);
@@ -236,31 +253,38 @@ export function WalkthroughApp() {
     });
   }
 
-  // A clip is a first-frame / last-frame video from the parent scene's frame to this one's. Gemini first
-  // writes the motion prompt from both frames; if that step fails the clip still runs on a plain fallback.
-  async function makeVideo(id: string) {
+  // A clip is a video made from a scene's frame(s), guided by the scene's animation prompt (its node text):
+  //  - "flf2v": first-frame / last-frame, from the parent scene's frame to this one's, as long as the gap
+  //    between the two on the timeline;
+  //  - "single": this scene's frame alone, animated.
+  // Gemini first writes the motion prompt from the frame(s) and the user's direction; if that step fails the
+  // clip still runs on the user's own text plus a plain fallback.
+  async function makeVideo(id: string, mode: ClipMode = "flf2v") {
     const node = tree[id];
-    const from = transitionKey(tree, scenes, id);
-    if (!node?.parentId || !from) return;
-    const parent = tree[node.parentId];
-    const first = finalFrame(sceneOf(scenes, parent.id))!;
+    if (!node) return;
+    const single = mode === "single";
+    const from = single ? singleKey(scenes, id) : transitionKey(tree, scenes, id);
+    if (!from || (!single && !node.parentId)) return;
     const last = finalFrame(sceneOf(scenes, id))!;
-    const notes = { from: promptOf(parent), to: promptOf(node) };
+    const first = single ? null : finalFrame(sceneOf(scenes, node.parentId!))!;
+    const motion = promptOf(node);
+    const gap = Math.round(gapSeconds(tree, id));
+    const seconds = single ? singleClipSeconds(tree, id, apiModels) : clipSeconds(gap, apiModels);
     const slice = (a: number, b: number, onProgress: (e: ProgressEvent) => void) => (e: ProgressEvent) =>
       onProgress({ percent: a + (e.percent / 100) * (b - a), message: e.message });
 
-    const made = await runJob({ kind: "video", id }, async (ctrl, onProgress) => {
+    const made = await runJob({ kind: single ? "single" : "video", id }, async (ctrl, onProgress) => {
       let prompt: string;
       let refineError: string | null = null;
       try {
         const clientId = crypto.randomUUID();
         const { promptId } = await queueWalkthroughPromptStage(
           {
-            firstImage: outputFileName(first),
+            firstImage: first ? outputFileName(first) : null,
             lastImage: outputFileName(last),
-            prompt: walkthroughVideoRequest({ ...notes, style }),
+            prompt: walkthroughVideoRequest({ motion, style, mode, seconds }),
             seed: seed32(),
-            seconds: apiModels ? API_VIDEO_SECONDS : undefined,
+            seconds,
           },
           clientId,
         );
@@ -269,24 +293,34 @@ export function WalkthroughApp() {
       } catch (err) {
         if (isAbort(err)) throw err;
         refineError = errorText(err);
-        prompt = fallbackWalkthroughPrompt(notes);
+        prompt = fallbackWalkthroughPrompt({ motion, mode });
       }
       const clientId = crypto.randomUUID();
-      const params = { firstImage: outputFileName(first), lastImage: outputFileName(last), prompt, seed: seed32() };
-      const queued = await (apiModels ? queueApiVideoStage : queueFlf2vStage)(params, clientId);
+      const seed = seed32();
+      const lastName = outputFileName(last);
+      const firstName = first ? outputFileName(first) : null;
+      const queued = apiModels
+        ? await queueApiVideoStage({ firstImage: firstName, lastImage: lastName, prompt, seed, duration: seconds }, clientId)
+        : firstName
+          ? await queueFlf2vStage({ firstImage: firstName, lastImage: lastName, prompt, seed, duration: seconds }, clientId)
+          : await queueVideoStage({ imageName: lastName, motionPrompt: prompt, seed, duration: seconds }, clientId);
       promptIdRef.current = queued.promptId;
-      const video = await (apiModels ? trackApiVideoStage : trackFlf2vStage)(queued.promptId, clientId, slice(10, 100, onProgress), ctrl.signal);
+      const track = apiModels ? trackApiVideoStage : firstName ? trackFlf2vStage : trackVideoStage;
+      const video = await track(queued.promptId, clientId, slice(10, 100, onProgress), ctrl.signal);
       return { video, prompt, refineError };
     });
     if (!made) return;
-    patchScene(id, { video: made.video, videoMeta: { prompt: made.prompt, from } });
+    patchScene(id, { video: made.video, videoMeta: { prompt: made.prompt, from, mode, gap } });
     if (made.refineError) setError(`Video made with a basic prompt — the prompt-writing step failed: ${made.refineError}`);
   }
 
   // --- the route the film follows, and the film ---
   const path = useMemo(() => route(tree, selectedId), [tree, selectedId]);
   const clips = routeClips(scenes, path);
-  const signature = `${mergeSignature(clips)}#${path.map((n) => (videoStale(tree, scenes, n.id) ? "x" : "")).join("")}`;
+  const signature = routeSignature(tree, scenes, path);
+  const filmSeconds = routeSeconds(tree, scenes, path, apiModels);
+  // The timeline's last scene, for the "x of 5:00" readout.
+  const timelineEnd = Math.max(...Object.values(tree).map((n) => n.year));
   const routeNote = `Route: ${path.map((n) => sceneLabel(tree, scenes, n.id)).join(" → ")}`;
 
   async function makeFilm() {
@@ -307,7 +341,8 @@ export function WalkthroughApp() {
   }
 
   // Add `n` scenes one after another (each the child of the last), every one starting from its parent's
-  // drawing, references and prompt (not the render or clip), so similar views need no set-up from scratch.
+  // drawing, references and image prompt (not the render, clip or animation prompt: each move is its own),
+  // so similar views need no set-up from scratch. Scenes stop at the end of the timeline.
   function spawnChain(id: string, n: number, ppy?: number) {
     const room = MAX_SCENES - count;
     if (room <= 0) {
@@ -320,15 +355,20 @@ export function WalkthroughApp() {
     const nextScenes = { ...scenes };
     let parentId = id;
     let last = id;
+    let added = 0;
     for (let i = 0; i < total; i++) {
-      const made = addChild(nextTree, parentId, ppy);
+      const made = addChild(nextTree, parentId, ppy, SECONDS_AXIS);
+      if (made.tree[made.id].year <= nextTree[parentId].year) break; // the parent is already at the end of the timeline
       const parentScene = sceneOf(nextScenes, parentId);
-      nextTree = { ...made.tree, [made.id]: { ...made.tree[made.id], text: promptOf(nextTree[parentId]) } };
+      nextTree = made.tree;
       if (parentScene.mode !== "inbetween") {
-        nextScenes[made.id] = { ...blankScene(parentScene.mode), drawing: parentScene.drawing, references: [...parentScene.references] };
+        nextScenes[made.id] = { ...blankScene(parentScene.mode), imagePrompt: parentScene.imagePrompt, drawing: parentScene.drawing, references: [...parentScene.references] };
       }
       parentId = last = made.id;
+      added++;
     }
+    if (added < total) setError(added ? `Added ${added}: the timeline ends at ${formatClock(MAX_FILM_SECONDS)}.` : `The timeline ends at ${formatClock(MAX_FILM_SECONDS)}: move this scene earlier to add another after it.`);
+    if (!added) return;
     setTree(nextTree);
     setScenes(nextScenes);
     setSelectedId(last);
@@ -347,6 +387,37 @@ export function WalkthroughApp() {
     setScenes((m) => pruneScenes(kept, empty ? {} : m));
     if (selectedId && !kept[selectedId]) setSelectedId(empty ? "start" : null);
     setEditingId(null);
+  }
+
+  // --- walkthrough file: export the whole walkthrough as JSON, or load one back in ---
+  const importRef = useRef<HTMLInputElement | null>(null);
+  const hasWork = count > 1 || Object.keys(scenes).length > 0 || !!style.trim() || Object.values(tree).some((n) => n.text.trim());
+
+  function exportWalkthrough() {
+    const text = exportWalkthroughFile({ style, tree, scenes, film: film?.file ?? null });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    a.download = `walkthrough-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async function importWalkthrough(file: File) {
+    try {
+      const data = parseWalkthroughFile(await file.text());
+      if (hasWork && !window.confirm("Replace the current walkthrough with the imported one?")) return;
+      const root = Object.values(data.tree).find((n) => n.parentId === null)!;
+      setTree(data.tree);
+      setScenes(data.scenes);
+      setStyle(data.style);
+      setFilm(data.film ? { file: data.film, signature: routeSignature(data.tree, data.scenes, route(data.tree, root.id)) } : null);
+      setSelectedId(root.id);
+      setEditingId(null);
+      setError(null);
+      setFitKey((k) => k + 1);
+    } catch (err) {
+      setError(`Couldn't import that file: ${errorText(err)}`);
+    }
   }
 
   const sel = selectedId ? tree[selectedId] : undefined;
@@ -441,6 +512,37 @@ export function WalkthroughApp() {
         >
           Render all ready white-box scenes ({batchIds.length})
         </button>
+        <span className="mx-1 hidden h-5 w-px bg-line sm:inline-block" />
+        <input
+          ref={importRef}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (f) void importWalkthrough(f);
+          }}
+        />
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => importRef.current?.click()}
+          className="plaque-label chrome inline-flex items-center gap-1.5 rounded-full border-2 border-ink px-3 py-1 text-[10px] text-ink disabled:opacity-50"
+        >
+          <UploadIcon size={11} /> Import JSON
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={exportWalkthrough}
+          className="plaque-label chrome inline-flex items-center gap-1.5 rounded-full border-2 border-ink px-3 py-1 text-[10px] text-ink disabled:opacity-50"
+        >
+          <Download size={11} /> Export JSON
+        </button>
+        <span className="ml-auto font-mono text-[11px] text-dim" title="Where the last scene sits on the timeline, and the running time of the clips made on the selected route">
+          Timeline {formatClock(timelineEnd)} / {formatClock(MAX_FILM_SECONDS)} · route clips {formatClock(filmSeconds)}
+        </span>
       </div>
 
       {/* Status: progress while a job runs, errors after */}
@@ -474,13 +576,18 @@ export function WalkthroughApp() {
             order={path.findIndex((n) => n.id === sel.id) + 1 || 1}
             scene={selScene}
             prompt={promptDraft(sel)}
+            clipSeconds={sel.parentId ? clipSeconds(gapSeconds(tree, sel.id), apiModels) : null}
+            gapSeconds={gapSeconds(tree, sel.id)}
+            singleSeconds={singleClipSeconds(tree, sel.id, apiModels)}
+            singleBlocker={singleBlocker(scenes, sel.id)}
             blocker={selScene.mode === "rendered" ? null : sceneBlocker(tree, scenes, sel.id)}
             videoBlocker={sel.parentId ? videoBlocker(tree, scenes, sel.id) : undefined}
             videoStale={videoStale(tree, scenes, sel.id)}
             busy={busy}
-            working={job?.id === sel.id && (job.kind === "image" || job.kind === "video") ? job.kind : null}
+            working={job?.id === sel.id && (job.kind === "image" || job.kind === "video" || job.kind === "single") ? job.kind : null}
             onName={(name) => patchScene(sel.id, { name })}
             onPrompt={(text) => setText(sel.id, text)}
+            onImagePrompt={(text) => patchScene(sel.id, { imagePrompt: text })}
             onMode={(m) => changeMode(sel.id, m)}
             onDrawing={(f) => void setDrawing(sel.id, f)}
             onReference={(f) => void addReferences(sel.id, f)}
@@ -488,6 +595,7 @@ export function WalkthroughApp() {
             onRemove={() => removeNode(sel.id)}
             onGenerate={() => void generateImage(sel.id)}
             onVideo={() => void makeVideo(sel.id)}
+            onSingleVideo={() => void makeVideo(sel.id, "single")}
           />
         ) : (
           <p className="rounded-2xl border-2 border-dashed border-ink bg-field p-6 text-center font-serif text-sm text-dim">

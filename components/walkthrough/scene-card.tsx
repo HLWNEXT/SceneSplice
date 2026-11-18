@@ -1,9 +1,9 @@
 "use client";
 
-import { ImagePlus, LoaderCircle, Sparkles, Trash2, Video, X } from "lucide-react";
+import { Clapperboard, ImagePlus, LoaderCircle, Sparkles, Trash2, Video, X } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import { viewUrl } from "../../lib/comfy";
-import { MAX_REFERENCES, finalFrame, type SceneData, type SceneMode, type Upload } from "../../lib/walkthrough";
+import { MAX_REFERENCES, finalFrame, formatClock, type SceneData, type SceneMode, type Upload } from "../../lib/walkthrough";
 
 const small =
   "plaque-label chrome inline-flex items-center gap-1.5 rounded-full border-2 border-ink px-3 py-1.5 text-[10px] text-ink disabled:cursor-not-allowed disabled:opacity-45";
@@ -23,8 +23,15 @@ type Props = {
   /** Position of the scene on its route, for the badge. */
   order: number;
   scene: SceneData;
-  /** The scene's prompt: the text of its node on the canvas. Empty when the node still has its placeholder. */
+  /** The scene's animation prompt: the text of its node on the canvas. Empty when the node still has its placeholder. */
   prompt: string;
+  /** Seconds between the scene before and this one on the timeline, and the clip length that will be asked for (null for the first scene). */
+  gapSeconds: number;
+  clipSeconds: number | null;
+  /** Length of a single-frame clip of this scene. */
+  singleSeconds: number;
+  /** Why a single-frame clip can't be made yet, or null. */
+  singleBlocker: string | null;
   /** Why the image can't be generated yet, or null. */
   blocker: string | null;
   /** Why the clip into this scene can't be made yet, or null. Undefined when there is no clip (first scene). */
@@ -32,9 +39,10 @@ type Props = {
   videoStale: boolean;
   busy: boolean;
   /** This scene's own job is running. */
-  working: "image" | "video" | null;
+  working: "image" | "video" | "single" | null;
   onName: (name: string) => void;
   onPrompt: (text: string) => void;
+  onImagePrompt: (text: string) => void;
   onMode: (mode: SceneMode) => void;
   onDrawing: (file: File) => void;
   onReference: (files: File[]) => void;
@@ -42,6 +50,7 @@ type Props = {
   onRemove: () => void;
   onGenerate: () => void;
   onVideo: () => void;
+  onSingleVideo: () => void;
 };
 
 function Picker({ label, multiple, disabled, onFiles }: { label: string; multiple?: boolean; disabled?: boolean; onFiles: (f: File[]) => void }) {
@@ -133,6 +142,7 @@ export function SceneCard(p: Props) {
   const frame = finalFrame(s);
   const off = p.busy;
   const hasClip = p.videoBlocker !== undefined;
+  const single = s.videoMeta?.mode === "single";
 
   return (
     <article className="plate-marks rounded-2xl border-2 border-ink bg-panel p-5" aria-label={p.label}>
@@ -226,49 +236,74 @@ export function SceneCard(p: Props) {
             </DropZone>
           )}
 
+          {s.mode !== "rendered" && (
+            <label className="block">
+              <span className="plaque-label mb-1.5 block text-[10px] text-dim">
+                {s.mode === "whitebox" ? "Image prompt: what to render" : "What this frame shows (optional)"}
+              </span>
+              <textarea
+                value={s.imagePrompt}
+                onChange={(e) => p.onImagePrompt(e.target.value)}
+                rows={3}
+                disabled={off}
+                placeholder={
+                  s.mode === "whitebox"
+                    ? "Warm oak floor, lime-plaster walls, deep green velvet sofa, late-afternoon light through the east window…"
+                    : "The stair landing, seen from halfway up."
+                }
+                className={field}
+              />
+            </label>
+          )}
+
           <label className="block">
-            <span className="plaque-label mb-1.5 block text-[10px] text-dim">
-              {s.mode === "whitebox" ? "Render prompt (also the node's text on the canvas)" : inbetween ? "What this frame shows (optional)" : "What happens here (optional, guides the video)"}
-            </span>
+            <span className="plaque-label mb-1.5 block text-[10px] text-dim">Animation prompt: camera motion, what to animate, and how (also the node's text)</span>
             <textarea
               value={p.prompt}
               onChange={(e) => p.onPrompt(e.target.value)}
-              rows={3}
+              rows={4}
               disabled={off}
-              placeholder={
-                s.mode === "whitebox"
-                  ? "Warm oak floor, lime-plaster walls, deep green velvet sofa, late-afternoon light through the east window…"
-                  : "The camera drifts past the reception desk toward the atrium."
-              }
+              placeholder="Slow dolly forward toward the east window while drifting slightly right. The sheer curtain stirs in a light breeze and dust floats through the sunbeam."
               className={field}
             />
+            <span className="mt-1 block text-xs leading-relaxed text-dim">
+              Describes how this scene's still image is brought to life. It guides the clip that arrives here and the single-frame clip below. Leave it empty to let the model choose.
+            </span>
           </label>
         </div>
 
-        {hasClip && (
-          <div>
-            <p className="plaque-label mb-1.5 text-[10px] text-dim">Video from the scene before</p>
-            <div className="flex aspect-video items-center justify-center overflow-hidden rounded-xl border-2 border-ink bg-stage-well">
-              {s.video ? (
-                <video key={viewUrl(s.video)} src={viewUrl(s.video)} controls className="size-full bg-black" />
-              ) : (
-                <p className="px-4 text-center font-serif text-xs text-stage-dim">No clip yet</p>
-              )}
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-3">
+        <div>
+          <p className="plaque-label mb-1.5 text-[10px] text-dim">
+            {s.video ? (single ? "Video animated from this frame alone" : "Video from the scene before") : "Video"}
+          </p>
+          <div className="flex aspect-video items-center justify-center overflow-hidden rounded-xl border-2 border-ink bg-stage-well">
+            {s.video ? (
+              <video key={viewUrl(s.video)} src={viewUrl(s.video)} controls className="size-full bg-black" />
+            ) : (
+              <p className="px-4 text-center font-serif text-xs text-stage-dim">No clip yet</p>
+            )}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            {hasClip && (
               <button type="button" onClick={p.onVideo} disabled={off || !!p.videoBlocker} title={p.videoBlocker ?? undefined} className={primary}>
                 {p.working === "video" ? <LoaderCircle size={13} className="animate-spin" /> : <Video size={13} />}
-                {p.working === "video" ? "Making video…" : s.video ? "Make video again" : "Make video"}
+                {p.working === "video" ? "Making video…" : s.video && !single ? "Make video again" : `Make video (${p.clipSeconds} s)`}
               </button>
-              {p.videoBlocker ? (
-                <span className="text-xs text-dim">{p.videoBlocker}</span>
-              ) : (
-                p.videoStale && <span className="text-xs text-oxide">Out of date — a frame changed. Make it again.</span>
-              )}
-            </div>
-            {s.videoMeta && <p className="mt-2 text-xs leading-relaxed text-dim">Video prompt: {s.videoMeta.prompt}</p>}
+            )}
+            <button type="button" onClick={p.onSingleVideo} disabled={off || !!p.singleBlocker} title={p.singleBlocker ?? undefined} className={hasClip ? small : primary}>
+              {p.working === "single" ? <LoaderCircle size={13} className="animate-spin" /> : <Clapperboard size={13} />}
+              {p.working === "single" ? "Animating…" : s.video && single ? "Animate again" : `Animate this frame (${p.singleSeconds} s)`}
+            </button>
           </div>
-        )}
+          <p className="mt-2 text-xs leading-relaxed text-dim">
+            {hasClip && p.clipSeconds !== null
+              ? `Make video runs from the scene before to this one over the ${formatClock(p.gapSeconds)} between them${p.clipSeconds !== Math.round(p.gapSeconds) ? `, limited to ${p.clipSeconds} s by the video model` : ""}. Animate this frame uses this scene's frame alone, replacing that clip.`
+              : "Animate this frame turns this scene's frame alone into a short clip. Add a scene after it to make a video that travels between them."}
+          </p>
+          {hasClip && p.videoBlocker && <p className="mt-1 text-xs text-dim">{p.videoBlocker}</p>}
+          {!p.videoBlocker && p.videoStale && <p className="mt-1 text-xs text-oxide">Out of date — a frame or the timeline gap changed. Make it again.</p>}
+          {s.videoMeta && <p className="mt-2 text-xs leading-relaxed text-dim">Video prompt: {s.videoMeta.prompt}</p>}
+        </div>
       </div>
     </article>
   );
