@@ -12,3 +12,6 @@ higgsfield-apps-reference.png
 
 # Local Claude Code permissions (contain local paths and repo names)
 .claude/settings.json
+
+# Local environment and secrets
+.env
