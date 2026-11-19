@@ -3,14 +3,13 @@
 import { LogOut, Settings } from "lucide-react";
 import { useState } from "react";
 import { SettingsDialog } from "./settings-dialog";
-import { Studio } from "./studio";
 import { ScenarioApp } from "./scenario/scenario-app";
 import { WalkthroughApp } from "./walkthrough/walkthrough-app";
 
-type Mode = "decay" | "whatifstreet" | "walkthrough";
+type Mode = "whatifstreet" | "walkthrough";
 
 export function AppShell({ user }: { user: { name: string; email: string } | null }) {
-  const [mode, setMode] = useState<Mode>("decay");
+  const [mode, setMode] = useState<Mode>("whatifstreet");
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Bumped when settings are saved so the studios remount and re-check the (possibly new) ComfyUI server.
   const [serverEpoch, setServerEpoch] = useState(0);
@@ -23,12 +22,11 @@ export function AppShell({ user }: { user: { name: string; email: string } | nul
         </h1>
         <div className="my-5 h-[3px] w-24 rounded-full bg-accent" />
         <p className="max-w-[620px] text-sm leading-relaxed text-dim">
-          Splice scenes through time: simulate how a space decays, or re-imagine a real street under a world-changing event.
+          Splice scenes through time: re-imagine a real street under a world-changing event.
         </p>
       </header>
       <nav className="mx-auto flex w-[min(1120px,calc(100%-32px))] items-center gap-2 pt-6" aria-label="Tools">
         {([
-          ["decay", "Decay Studio"],
           ["whatifstreet", "WhatIfStreet"],
           ["walkthrough", "Walkthrough"],
         ] as const).map(([id, label]) => (
@@ -68,7 +66,7 @@ export function AppShell({ user }: { user: { name: string; email: string } | nul
         )}
       </nav>
       <div key={serverEpoch} className="contents">
-        {mode === "decay" ? <Studio /> : mode === "whatifstreet" ? <ScenarioApp /> : <WalkthroughApp />}
+        {mode === "whatifstreet" ? <ScenarioApp /> : <WalkthroughApp />}
       </div>
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} onSaved={() => setServerEpoch((n) => n + 1)} />}
     </>

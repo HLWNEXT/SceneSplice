@@ -10,7 +10,6 @@ const ERRORS: Record<string, string> = {
 };
 
 const FEATURES = [
-  ["Decay Studio", "Simulate how a space weathers and decays through time."],
   ["WhatIfStreet", "Re-imagine a real street under a world-changing event."],
   ["Walkthrough", "Chain scenes into a continuous film with inherited look and feel."],
 ] as const;
@@ -63,7 +62,7 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
         </p>
       )}
 
-      <ul className="mt-14 grid gap-4 sm:grid-cols-3">
+      <ul className="mt-14 grid gap-4 sm:grid-cols-2">
         {FEATURES.map(([title, body]) => (
           <li key={title} className="chrome rounded-2xl border-2 border-ink p-5">
             <h2 className="plaque-label text-[11px] text-ink">{title}</h2>

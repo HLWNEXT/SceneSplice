@@ -73,6 +73,7 @@ import {
 } from "../../lib/walkthrough";
 import { API_VIDEO_SECONDS } from "../../lib/whatifstreet-workflow";
 import { FinalFilm } from "../scenario/final-film";
+import { WALKTHROUGH_AUTOSAVE_KEY, clearAutosave, loadAutosave, saveAutosave } from "../../lib/autosave";
 import { StorylineCanvas, type CanvasLabels } from "../storyline/storyline-canvas";
 import { SceneCard } from "./scene-card";
 
@@ -402,23 +403,50 @@ export function WalkthroughApp() {
     URL.revokeObjectURL(a.href);
   }
 
+  function applyWalkthrough(data: ReturnType<typeof parseWalkthroughFile>) {
+    const root = Object.values(data.tree).find((n) => n.parentId === null)!;
+    setTree(data.tree);
+    setScenes(data.scenes);
+    setStyle(data.style);
+    setFilm(data.film ? { file: data.film, signature: routeSignature(data.tree, data.scenes, route(data.tree, root.id)) } : null);
+    setSelectedId(root.id);
+    setEditingId(null);
+    setError(null);
+    setFitKey((k) => k + 1);
+  }
+
   async function importWalkthrough(file: File) {
     try {
       const data = parseWalkthroughFile(await file.text());
       if (hasWork && !window.confirm("Replace the current walkthrough with the imported one?")) return;
-      const root = Object.values(data.tree).find((n) => n.parentId === null)!;
-      setTree(data.tree);
-      setScenes(data.scenes);
-      setStyle(data.style);
-      setFilm(data.film ? { file: data.film, signature: routeSignature(data.tree, data.scenes, route(data.tree, root.id)) } : null);
-      setSelectedId(root.id);
-      setEditingId(null);
-      setError(null);
-      setFitKey((k) => k + 1);
+      applyWalkthrough(data);
     } catch (err) {
       setError(`Couldn't import that file: ${errorText(err)}`);
     }
   }
+
+  // --- autosave: the walkthrough is kept in this browser, so reopening the page picks up where you left off ---
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    const saved = loadAutosave(WALKTHROUGH_AUTOSAVE_KEY);
+    if (saved) {
+      try {
+        applyWalkthrough(parseWalkthroughFile(saved));
+      } catch {
+        clearAutosave(WALKTHROUGH_AUTOSAVE_KEY); // unreadable or from an incompatible version
+      }
+    }
+    setRestored(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!restored) return;
+    const t = setTimeout(() => {
+      if (hasWork) saveAutosave(WALKTHROUGH_AUTOSAVE_KEY, exportWalkthroughFile({ style, tree, scenes, film: film?.file ?? null }));
+      else clearAutosave(WALKTHROUGH_AUTOSAVE_KEY);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [restored, hasWork, style, tree, scenes, film]);
 
   const sel = selectedId ? tree[selectedId] : undefined;
   const selScene = sel ? sceneOf(scenes, sel.id) : null;
@@ -616,6 +644,7 @@ export function WalkthroughApp() {
           onMerge={makeFilm}
           downloadName="walkthrough-film.mp4"
           orderNote={routeNote}
+          clips={clips.map((c) => ({ file: c.file, name: sceneLabel(tree, scenes, c.id) }))}
         />
       </div>
     </main>

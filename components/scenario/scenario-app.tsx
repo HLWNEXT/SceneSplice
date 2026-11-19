@@ -64,6 +64,7 @@ import { StorylineCanvas } from "../storyline/storyline-canvas";
 import type { StreetViewCaptureFn } from "../whatifstreet/street-view-picker";
 import { DetailPanel } from "./detail-panel";
 import { FinalFilm } from "./final-film";
+import { STORYLINE_AUTOSAVE_KEY, clearAutosave, loadAutosave, saveAutosave } from "../../lib/autosave";
 import { InputNodes } from "./input-nodes";
 import { SelectionBar, type JobState, type Selection } from "./selection-bar";
 
@@ -383,30 +384,61 @@ export function ScenarioApp() {
     URL.revokeObjectURL(a.href);
   }
 
+  function applyStory(data: ReturnType<typeof parseStoryFile>) {
+    const { inputs } = data;
+    const loaded = mergeSignature(mergeOrder(data.tree));
+    setLocationLabel(inputs.location);
+    setYears(inputs.years);
+    setButterfly(inputs.butterfly);
+    setClimate(inputs.climate);
+    setClimateSet(inputs.climateSet);
+    setTree(data.tree);
+    setFrame(storyFrame(inputs.years));
+    setFilm(data.film ? { file: data.film, signature: loaded } : null);
+    setStale(false);
+    setSelection(null);
+    setPanelOpen(false);
+    setEditingId(null);
+    setError(null);
+    setFitKey((k) => k + 1);
+  }
+
   async function importStory(file: File) {
     try {
       const data = parseStoryFile(await file.text(), viewUrl);
       if (hasStory && !window.confirm("Replace the current storyline with the imported one?")) return;
-      const { inputs } = data;
-      const loaded = mergeSignature(mergeOrder(data.tree));
-      setLocationLabel(inputs.location);
-      setYears(inputs.years);
-      setButterfly(inputs.butterfly);
-      setClimate(inputs.climate);
-      setClimateSet(inputs.climateSet);
-      setTree(data.tree);
-      setFrame(storyFrame(inputs.years));
-      setFilm(data.film ? { file: data.film, signature: loaded } : null);
-      setStale(false);
-      setSelection(null);
-      setPanelOpen(false);
-      setEditingId(null);
-      setError(null);
-      setFitKey((k) => k + 1);
+      applyStory(data);
     } catch (err) {
       setError(`Couldn't import that file: ${errorText(err)}`);
     }
   }
+
+  // --- autosave: the storyline is kept in this browser, so reopening the page picks up where you left off ---
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    const saved = loadAutosave(STORYLINE_AUTOSAVE_KEY);
+    if (saved) {
+      try {
+        applyStory(parseStoryFile(saved, viewUrl));
+      } catch {
+        clearAutosave(STORYLINE_AUTOSAVE_KEY); // unreadable or from an incompatible version
+      }
+    }
+    setRestored(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!restored) return;
+    const t = setTimeout(() => {
+      if (hasStory) {
+        saveAutosave(
+          STORYLINE_AUTOSAVE_KEY,
+          exportStoryFile({ inputs: { location: locationLabel, years: years ?? 0, butterfly, climate, climateSet }, tree, film: film?.file ?? null }),
+        );
+      } else clearAutosave(STORYLINE_AUTOSAVE_KEY);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [restored, hasStory, locationLabel, years, butterfly, climate, climateSet, tree, film]);
 
   // Joins every beat's video, earliest first, into one film.
   async function makeFilm() {
