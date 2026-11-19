@@ -1,6 +1,6 @@
 "use client";
 
-import { Settings } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import { useState } from "react";
 import { SettingsDialog } from "./settings-dialog";
 import { Studio } from "./studio";
@@ -9,7 +9,7 @@ import { WalkthroughApp } from "./walkthrough/walkthrough-app";
 
 type Mode = "decay" | "whatifstreet" | "walkthrough";
 
-export function AppShell() {
+export function AppShell({ user }: { user: { name: string; email: string } | null }) {
   const [mode, setMode] = useState<Mode>("decay");
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Bumped when settings are saved so the studios remount and re-check the (possibly new) ComfyUI server.
@@ -54,6 +54,18 @@ export function AppShell() {
         >
           <Settings size={15} />
         </button>
+        {user && (
+          <form action="/api/auth/logout" method="post">
+            <button
+              type="submit"
+              title={`Signed in as ${user.email}`}
+              className="chrome plaque-label flex items-center gap-2 rounded-full border-2 border-ink px-3 py-2 text-[11px] text-ink"
+            >
+              <LogOut size={13} />
+              <span className="max-w-[140px] truncate">{user.name}</span>
+            </button>
+          </form>
+        )}
       </nav>
       <div key={serverEpoch} className="contents">
         {mode === "decay" ? <Studio /> : mode === "whatifstreet" ? <ScenarioApp /> : <WalkthroughApp />}
