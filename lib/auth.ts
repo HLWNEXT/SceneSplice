@@ -150,3 +150,11 @@ export function sessionFromIdToken(idToken: string, c: AuthConfig, nonce: string
     exp: Math.floor(now / 1000) + SESSION_TTL_S,
   };
 }
+
+/** The origin the browser used (Host header), since the framework's parsed URL can report a different loopback name in dev. */
+export function requestOrigin(req: { headers: Headers; nextUrl: { origin: string; protocol: string } }): string {
+  const host = req.headers.get("host");
+  if (!host) return req.nextUrl.origin;
+  const proto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ?? req.nextUrl.protocol.replace(":", "");
+  return `${proto}://${host}`;
+}
